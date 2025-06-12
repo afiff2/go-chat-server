@@ -4,17 +4,11 @@ type RegisterRequest struct {
 	Telephone string `json:"telephone"`
 	Password  string `json:"password"`
 	Nickname  string `json:"nickname"`
-	SmsCode   string `json:"sms_code"`
 }
 
 type LoginRequest struct {
 	Telephone string `json:"telephone"`
 	Password  string `json:"password"`
-}
-
-type SmsLoginRequest struct {
-	Telephone string `json:"telephone"`
-	SmsCode   string `json:"sms_code"`
 }
 
 type UpdateUserInfoRequest struct {
@@ -37,8 +31,4 @@ type AbleUsersRequest struct {
 
 type GetUserInfoRequest struct {
 	Uuid string `json:"uuid"`
-}
-
-type SendSmsCodeRequest struct {
-	Telephone string `json:"telephone"`
 }

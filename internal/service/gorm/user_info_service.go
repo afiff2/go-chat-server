@@ -133,6 +133,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 // DeleteUsers 删除用户
 // 用户是否启用禁用需要实时更新contact_user_list状态，所以redis的contact_user_list需要删除
 func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
+	//zlog.Debug("计划删除用户数量", zap.Int("length", len(uuidList)))
 	var users []model.UserInfo
 	if res := dao.GormDB.Model(model.UserInfo{}).Where("uuid in (?)", uuidList).Find(&users); res.Error != nil {
 		zlog.Error(res.Error.Error())
@@ -146,5 +147,6 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 			return constants.SYSTEM_ERROR, constants.BizCodeError
 		}
 	}
+	//zlog.Debug("删除用户数量", zap.Int("length", len(users)))
 	return "删除用户成功", constants.BizCodeSuccess
 }

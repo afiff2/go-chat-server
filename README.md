@@ -17,5 +17,5 @@ curl -X POST http://localhost:8080/user/login \
 curl -X POST http://localhost:8080/user/delete \
      -H "Content-Type: application/json" \
      -d '{
-           "uuidList": ["uuid1", "uuid2"]
+           "uuid_list": ["uuid1", "uuid2"]
          }'
