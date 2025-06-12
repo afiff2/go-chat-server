@@ -1,0 +1,20 @@
+[serverConfig]
+host = "0.0.0.0"
+port = 8080
+
+[mysqlConfig]
+user = "root"
+socket = "/var/lib/mysql/mysql.sock"
+databaseName = "go-chat-server"
+
+[redisConfig]
+host = "127.0.0.1"
+port = 6379
+password = ""
+db = 0
+
+
+[log]
+env = "dev"
+path = "/root/Project/go-chat-server/logs/test.log"
+level = "debug"
