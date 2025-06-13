@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -12,6 +13,7 @@ type Config struct {
 	Log    LogConfig    `toml:"log"`
 	Mysql  MysqlConfig  `toml:"mysqlConfig"`
 	Redis  RedisConfig  `toml:"redisConfig"`
+	Kafka  KafkaConfig  `toml:"kafkaConfig"`
 }
 
 type ServerConfig struct {
@@ -36,6 +38,17 @@ type RedisConfig struct {
 	Port     int    `toml:"port"`
 	Password string `toml:"password"`
 	Db       int    `toml:"db"`
+}
+
+type KafkaConfig struct {
+	HostPort      string        `toml:"hostPort"`
+	LoginTopic    string        `toml:"loginTopic"`
+	LogoutTopic   string        `toml:"logoutTopic"`
+	ChatTopic     string        `toml:"chatTopic"`
+	Partition     int           `toml:"partition"`
+	Replication   int           `toml:"replication"`
+	WriteTimeout  time.Duration `toml:"writeTimeout"`
+	CommitTimeout time.Duration `toml:"commitTimeout"`
 }
 
 var config *Config

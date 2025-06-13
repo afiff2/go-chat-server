@@ -13,6 +13,16 @@ port = 6379
 password = ""
 db = 0
 
+[kafkaConfig]
+hostPort = "127.0.0.1:9092" # "127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094" 多个kafka服务器
+loginTopic = "login"
+chatTopic = "chat_message"
+logoutTopic = "logout"
+partition = 3
+replication = 1
+writeTimeout = 10 # 单位秒
+commitTimeout = 5 # 单位秒
+
 
 [log]
 env = "dev"
