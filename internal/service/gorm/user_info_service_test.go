@@ -6,9 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/afiff2/go-chat-server/internal/dao"
 	"github.com/afiff2/go-chat-server/internal/dto/request"
-	"github.com/afiff2/go-chat-server/internal/model"
 	"github.com/afiff2/go-chat-server/pkg/constants"
 )
 
@@ -21,6 +19,7 @@ func init() {
 func TestUserFlow(t *testing.T) {
 	// 生成唯一电话号码避免冲突
 	testTel := "13800000001"
+	var uuid string
 
 	t.Run("Register", func(t *testing.T) {
 		req := request.RegisterRequest{
@@ -29,7 +28,8 @@ func TestUserFlow(t *testing.T) {
 			Nickname:  "test_user",
 		}
 
-		msg, _, code := UserInfoService.Register(req)
+		msg, rsp, code := UserInfoService.Register(req)
+		uuid = rsp.Uuid
 		assert.Equal(t, constants.BizCodeSuccess, code)
 		assert.Contains(t, msg, "注册成功")
 	})
@@ -50,8 +50,6 @@ func TestUserFlow(t *testing.T) {
 	})
 
 	t.Run("GetUserInfo", func(t *testing.T) {
-		uuid := getTestUserUuid(t, testTel)
-
 		msg, userInfo, code := UserInfoService.GetUserInfo(uuid)
 		assert.Equal(t, constants.BizCodeSuccess, code)
 		assert.Contains(t, msg, "获取用户信息成功")
@@ -61,8 +59,6 @@ func TestUserFlow(t *testing.T) {
 	})
 
 	t.Run("UpdateUserInfo", func(t *testing.T) {
-		uuid := getTestUserUuid(t, testTel)
-
 		req := request.UpdateUserInfoRequest{
 			Uuid:      uuid,
 			Nickname:  "updated_nick",
@@ -84,8 +80,6 @@ func TestUserFlow(t *testing.T) {
 	})
 
 	t.Run("DeleteUsers", func(t *testing.T) {
-		uuid := getTestUserUuid(t, testTel)
-
 		msg, code := UserInfoService.DeleteUsers([]string{uuid})
 		assert.Equal(t, constants.BizCodeSuccess, code)
 		assert.Contains(t, msg, "删除用户成功")
@@ -94,12 +88,24 @@ func TestUserFlow(t *testing.T) {
 		_, _, code = UserInfoService.GetUserInfo(uuid)
 		assert.Equal(t, constants.BizCodeInvalid, code)
 	})
-}
 
-// 辅助函数：从数据库中获取用户的 UUID
-func getTestUserUuid(t *testing.T, telephone string) string {
-	var user model.UserInfo
-	res := dao.GormDB.First(&user, "telephone = ?", telephone)
-	require.NoError(t, res.Error)
-	return user.Uuid
+	// 软删除后重新注册
+	t.Run("RegisterAfterSoftDelete", func(t *testing.T) {
+		req := request.RegisterRequest{
+			Telephone: testTel,
+			Password:  "newPassword",
+			Nickname:  "test_user_again",
+		}
+
+		msg, _, code := UserInfoService.Register(req)
+		assert.Contains(t, msg, "注册成功（恢复历史账号）")
+		assert.Equal(t, constants.BizCodeSuccess, code)
+
+		_, userInfo, _ := UserInfoService.GetUserInfo(uuid)
+		assert.Equal(t, "test_user_again", userInfo.Nickname)
+
+		msg2, code2 := UserInfoService.DeleteUsers([]string{uuid})
+		assert.Equal(t, constants.BizCodeSuccess, code2)
+		assert.Contains(t, msg2, "删除用户成功")
+	})
 }

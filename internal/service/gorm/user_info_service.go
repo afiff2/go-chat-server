@@ -86,29 +86,64 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 
 // Register 注册，返回(message, register_respond_string, error)
 func (u *userInfoService) Register(registerReq request.RegisterRequest) (string, *respond.GetUserInfoRespond, int) {
-
-	// 不用校验手机号，前端校验
-	// 判断电话是否已经被注册过了
-	var user model.UserInfo
-	if res := dao.GormDB.First(&user, "telephone = ?", registerReq.Telephone); res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			zlog.Info("该电话不存在，可以注册")
-		} else {
-			zlog.Error(res.Error.Error())
-			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
-		}
-	} else {
-		zlog.Info("该电话已经存在，注册失败")
-		return "该电话已经存在，注册失败", nil, constants.BizCodeInvalid
-	}
-
 	// 加密密码
 	hashedPassword, err := myhash.HashPassword(registerReq.Password)
 	if err != nil {
 		zlog.Error("密码加密失败", zap.Error(err))
 		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 	}
+	// 不用校验手机号，前端校验
+	// 判断电话是否已经被注册过了
+	var user model.UserInfo
+	if res := dao.GormDB.Unscoped().
+		Where("telephone = ?", registerReq.Telephone).
+		First(&user); res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			zlog.Info("该电话不存在，可以注册")
+		} else {
+			zlog.Error(res.Error.Error())
+			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+		}
+	} else { //要么软删状态，要么已存在
+		if user.DeletedAt.Valid {
+			// 软删状态 → “复活”这条记录
+			user.DeletedAt.Valid = false
+			user.DeletedAt.Time = time.Time{}    // 清空删除时间
+			user.Password = hashedPassword       // 更新密码
+			user.Nickname = registerReq.Nickname // 更新其它字段
+			//user.Avatar = "https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
+			user.Status = user_status_enum.NORMAL
 
+			if err := dao.GormDB.Save(&user).Error; err != nil {
+				zlog.Error("复活旧记录失败", zap.Error(err))
+				return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+			}
+
+			// 构造返回 DTO
+			registerRsp := &respond.GetUserInfoRespond{
+				Uuid:      user.Uuid,
+				Telephone: user.Telephone,
+				Nickname:  user.Nickname,
+				Email:     user.Email,
+				Avatar:    user.Avatar,
+				Gender:    user.Gender,
+				Birthday:  user.Birthday,
+				Signature: user.Signature,
+				CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+				IsAdmin:   user.IsAdmin,
+				Status:    user.Status,
+			}
+			if err := setUserInfoCache(registerRsp); err != nil {
+				return "注册成功（恢复历史账号）, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
+			}
+			return "注册成功（恢复历史账号）", registerRsp, constants.BizCodeSuccess
+		}
+		// 正常存在且未删除
+		zlog.Info("该电话已经存在，注册失败")
+		return "该电话已经存在，注册失败", nil, constants.BizCodeInvalid
+	}
+
+	//电话不存在，正常注册
 	var newUser model.UserInfo
 	newUser.Uuid = uuid.NewString()
 	newUser.Telephone = registerReq.Telephone
