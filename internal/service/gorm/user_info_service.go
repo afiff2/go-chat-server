@@ -1,18 +1,20 @@
 package gorm
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/afiff2/go-chat-server/internal/dao"
 	"github.com/afiff2/go-chat-server/internal/dto/request"
 	"github.com/afiff2/go-chat-server/internal/dto/respond"
 	"github.com/afiff2/go-chat-server/internal/model"
+	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/constants"
 	"github.com/afiff2/go-chat-server/pkg/enum/user_status_enum"
 	myhash "github.com/afiff2/go-chat-server/pkg/util/hash"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
@@ -24,14 +26,29 @@ type userInfoService struct {
 
 var UserInfoService = new(userInfoService)
 
+func setUserInfoCache(userInfo *respond.GetUserInfoRespond) error {
+	cacheKey := "user_info_" + userInfo.Uuid
+	rspBytes, err := json.Marshal(userInfo)
+	if err != nil {
+		zlog.Error("用户信息序列化失败", zap.Error(err))
+		return err
+	}
+	err = myredis.SetKeyEx(cacheKey, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
+	if err != nil {
+		zlog.Error("写入 Redis 缓存失败", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 // Login 登录
-func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond.LoginRespond, int) {
+func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond.GetUserInfoRespond, int) {
 	password := loginReq.Password
 	var user model.UserInfo
 	if res := dao.GormDB.First(&user, "telephone = ?", loginReq.Telephone); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			message := "用户不存在，请注册"
-			zlog.Error(message)
+			zlog.Info(message)
 			return message, nil, constants.BizCodeInvalid
 		}
 		zlog.Error(res.Error.Error())
@@ -40,11 +57,11 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 	// 使用哈希验证密码
 	if !myhash.CheckPasswordHash(password, user.Password) {
 		message := "密码不正确，请重试"
-		zlog.Error(message)
+		zlog.Info(message)
 		return message, nil, constants.BizCodeInvalid
 	}
 
-	loginRsp := &respond.LoginRespond{
+	loginRsp := &respond.GetUserInfoRespond{
 		Uuid:      user.Uuid,
 		Telephone: user.Telephone,
 		Nickname:  user.Nickname,
@@ -53,17 +70,22 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 		Gender:    user.Gender,
 		Birthday:  user.Birthday,
 		Signature: user.Signature,
+		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
 		IsAdmin:   user.IsAdmin,
 		Status:    user.Status,
 	}
-	year, month, day := user.CreatedAt.Date()
-	loginRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
+	// year, month, day := user.CreatedAt.Date()
+	// loginRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
+	// 将用户信息写入 Redis 缓存
+	if err := setUserInfoCache(loginRsp); err != nil {
+		return "登陆成功, 写入 Redis 缓存失败", loginRsp, constants.BizCodeSuccess
+	}
 
 	return "登陆成功", loginRsp, constants.BizCodeSuccess
 }
 
 // Register 注册，返回(message, register_respond_string, error)
-func (u *userInfoService) Register(registerReq request.RegisterRequest) (string, *respond.RegisterRespond, int) {
+func (u *userInfoService) Register(registerReq request.RegisterRequest) (string, *respond.GetUserInfoRespond, int) {
 
 	// 不用校验手机号，前端校验
 	// 判断电话是否已经被注册过了
@@ -96,12 +118,6 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	newUser.CreatedAt = time.Now()
 	newUser.IsAdmin = 0
 	newUser.Status = user_status_enum.NORMAL
-	// 手机号验证，最后一步才调用api，省钱hhh
-	//err := sms.VerificationCode(registerReq.Telephone)
-	//if err != nil {
-	//	zlog.Error(err.Error())
-	//	return "", err
-	//}
 
 	res := dao.GormDB.Create(&newUser)
 	if res.Error != nil {
@@ -112,7 +128,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	//if err := chat.NewClientInit(c, newUser.Uuid); err != nil {
 	//	return "", err
 	//}
-	registerRsp := &respond.RegisterRespond{
+	registerRsp := &respond.GetUserInfoRespond{
 		Uuid:      newUser.Uuid,
 		Telephone: newUser.Telephone,
 		Nickname:  newUser.Nickname,
@@ -121,11 +137,17 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		Gender:    newUser.Gender,
 		Birthday:  newUser.Birthday,
 		Signature: newUser.Signature,
+		CreatedAt: newUser.CreatedAt.Format("2006-01-02 15:04:05"),
 		IsAdmin:   newUser.IsAdmin,
 		Status:    newUser.Status,
 	}
-	year, month, day := newUser.CreatedAt.Date()
-	registerRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
+	// year, month, day := newUser.CreatedAt.Date()
+	// registerRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
+
+	// 将用户信息写入 Redis 缓存
+	if err := setUserInfoCache(registerRsp); err != nil {
+		return "注册成功, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
+	}
 
 	return "注册成功", registerRsp, constants.BizCodeSuccess
 }
@@ -133,20 +155,120 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 // DeleteUsers 删除用户
 // 用户是否启用禁用需要实时更新contact_user_list状态，所以redis的contact_user_list需要删除
 func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
-	//zlog.Debug("计划删除用户数量", zap.Int("length", len(uuidList)))
-	var users []model.UserInfo
-	if res := dao.GormDB.Model(model.UserInfo{}).Where("uuid in (?)", uuidList).Find(&users); res.Error != nil {
+	if res := dao.GormDB.
+		Where("uuid IN ?", uuidList).
+		Delete(&model.UserInfo{}); res.Error != nil {
+		zlog.Error("批量删除用户失败", zap.Error(res.Error))
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if err := myredis.DelKeysWithPrefixA("user_info_", uuidList); err != nil {
+		zlog.Warn("删除用户缓存失败", zap.Error(err))
+		return "删除用户成功，清理缓存失败", constants.BizCodeSuccess
+	}
+
+	return "删除用户成功", constants.BizCodeSuccess
+}
+
+// GetUserInfo 获取用户信息
+func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfoRespond, int) {
+	// 优先查找redis
+	zlog.Info(uuid)
+	cacheKey := "user_info_" + uuid
+	rspString, err := myredis.GetKeyNilIsErr(cacheKey)
+	if err != nil {
+		//redis中没有
+		if errors.Is(err, redis.Nil) {
+			zlog.Info("Redis 缓存未命中，回库读取", zap.String("key", cacheKey))
+		} else {
+			zlog.Warn("Redis 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
+		}
+		var user model.UserInfo
+		if res := dao.GormDB.First(&user, "uuid = ?", uuid); res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				zlog.Info("该用户不存在，修改失败")
+				return "该用户不存在，修改失败", nil, constants.BizCodeInvalid
+			}
+			zlog.Error(res.Error.Error())
+			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+		}
+		rsp := respond.GetUserInfoRespond{
+			Uuid:      user.Uuid,
+			Telephone: user.Telephone,
+			Nickname:  user.Nickname,
+			Avatar:    user.Avatar,
+			Birthday:  user.Birthday,
+			Email:     user.Email,
+			Gender:    user.Gender,
+			Signature: user.Signature,
+			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+			IsAdmin:   user.IsAdmin,
+			Status:    user.Status,
+		}
+		// 将用户信息写入 Redis 缓存
+		if err := setUserInfoCache(&rsp); err != nil {
+			return "获取用户信息成功, 写入 Redis 缓存失败", &rsp, constants.BizCodeSuccess
+		}
+		return "获取用户信息成功(来自数据库)", &rsp, constants.BizCodeSuccess
+	}
+	//redis中有
+	var rsp respond.GetUserInfoRespond
+	if err := json.Unmarshal([]byte(rspString), &rsp); err != nil {
+		zlog.Error(err.Error())
+		return "解析用户信息失败(Redis)", nil, constants.BizCodeError
+	}
+	return "获取用户信息成功(Redis)", &rsp, constants.BizCodeSuccess
+}
+
+// UpdateUserInfo 修改用户信息
+// 某用户修改了信息，可能会影响contact_user_list，不需要删除redis的contact_user_list，timeout之后会自己更新
+// 但是需要更新redis的user_info，因为可能影响用户搜索
+func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest) (string, int) {
+	var user model.UserInfo
+	if res := dao.GormDB.First(&user, "uuid = ?", updateReq.Uuid); res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			zlog.Info("该用户不存在，修改失败")
+			return "该用户不存在，修改失败", constants.BizCodeInvalid
+		}
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	for _, user := range users {
-		user.DeletedAt.Valid = true
-		user.DeletedAt.Time = time.Now()
-		if res := dao.GormDB.Save(&user); res.Error != nil {
-			zlog.Error(res.Error.Error())
-			return constants.SYSTEM_ERROR, constants.BizCodeError
-		}
+	if updateReq.Email != "" {
+		user.Email = updateReq.Email
 	}
-	//zlog.Debug("删除用户数量", zap.Int("length", len(users)))
-	return "删除用户成功", constants.BizCodeSuccess
+	if updateReq.Nickname != "" {
+		user.Nickname = updateReq.Nickname
+	}
+	if updateReq.Birthday != "" {
+		user.Birthday = updateReq.Birthday
+	}
+	if updateReq.Signature != "" {
+		user.Signature = updateReq.Signature
+	}
+	if updateReq.Avatar != "" {
+		user.Avatar = updateReq.Avatar
+	}
+	if res := dao.GormDB.Save(&user); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	rsp := respond.GetUserInfoRespond{
+		Uuid:      user.Uuid,
+		Telephone: user.Telephone,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Birthday:  user.Birthday,
+		Email:     user.Email,
+		Gender:    user.Gender,
+		Signature: user.Signature,
+		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+		IsAdmin:   user.IsAdmin,
+		Status:    user.Status,
+	}
+	// 将用户信息写入 Redis 缓存
+	if err := setUserInfoCache(&rsp); err != nil {
+		return "修改用户信息成功,写入 Redis 缓存失败", constants.BizCodeSuccess
+	}
+
+	return "修改用户信息成功", constants.BizCodeSuccess
 }

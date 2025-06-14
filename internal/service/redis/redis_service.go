@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/afiff2/go-chat-server/internal/config"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
 	"github.com/go-redis/redis/v8"
+	"go.uber.org/zap"
 )
 
 var redisClient *redis.Client
@@ -141,7 +141,7 @@ func DelKeysWithPattern(pattern string) error {
 
 		// 如果没有更多的键，则跳出循环
 		if len(keys) == 0 {
-			log.Println("没有找到对应key")
+			zlog.Info("没有找到对应key")
 			break
 		}
 
@@ -151,7 +151,7 @@ func DelKeysWithPattern(pattern string) error {
 			if err != nil {
 				return err
 			}
-			log.Println("成功删除相关对应key", keys)
+			zlog.Info("成功删除相关对应key")
 		}
 	}
 
@@ -172,7 +172,7 @@ func DelKeysWithPrefix(prefix string) error {
 
 		// 如果没有更多的键，则跳出循环
 		if len(keys) == 0 {
-			log.Println("没有找到相关前缀key")
+			zlog.Info("没有找到相关前缀key")
 			break
 		}
 
@@ -182,7 +182,7 @@ func DelKeysWithPrefix(prefix string) error {
 			if err != nil {
 				return err
 			}
-			log.Println("成功删除相关前缀key", keys)
+			zlog.Info("成功删除相关对应key")
 		}
 	}
 
@@ -203,7 +203,7 @@ func DelKeysWithSuffix(suffix string) error {
 
 		// 如果没有更多的键，则跳出循环
 		if len(keys) == 0 {
-			log.Println("没有找到相关后缀key")
+			zlog.Info("没有找到相关后缀key")
 			break
 		}
 
@@ -213,7 +213,7 @@ func DelKeysWithSuffix(suffix string) error {
 			if err != nil {
 				return err
 			}
-			log.Println("成功删除相关后缀key", keys)
+			zlog.Info("成功删除相关后缀key")
 		}
 	}
 
@@ -241,4 +241,40 @@ func DeleteAllRedisKeys() error {
 		}
 	}
 	return nil
+}
+
+// DelKeys 批量删除给定的一组 key，底层使用 pipeline，
+func DelKeys(keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// 开启 pipeline
+	pipe := redisClient.Pipeline()
+	for _, key := range keys {
+		pipe.Del(ctx, key)
+	}
+
+	// 一次性执行所有命令
+	if _, err := pipe.Exec(ctx); err != nil {
+		zlog.Warn("Redis 批量删除缓存失败", zap.Error(err), zap.Strings("keys", keys))
+		return err
+	}
+	return nil
+}
+
+// DelKeysWithPrefix 批量删除给定前缀 + 一组 uuid 对应的 keys，底层使用 pipeline
+func DelKeysWithPrefixA(prefix string, uuids []string) error {
+	if len(uuids) == 0 {
+		return nil
+	}
+
+	// 拼出完整的 key 列表
+	keys := make([]string, 0, len(uuids))
+	for _, id := range uuids {
+		keys = append(keys, prefix+id)
+	}
+
+	// 调用已有的批量删除
+	return DelKeys(keys)
 }

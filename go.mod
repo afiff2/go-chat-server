@@ -5,6 +5,7 @@ go 1.24.4
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/gin-gonic/gin v1.10.1
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible

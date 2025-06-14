@@ -1,6 +1,6 @@
 package respond
 
-type LoginRespond struct {
+type GetUserInfoRespond struct {
 	Uuid      string `json:"uuid"`
 	Nickname  string `json:"nickname"`
 	Telephone string `json:"telephone"`

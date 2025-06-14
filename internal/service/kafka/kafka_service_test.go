@@ -21,6 +21,7 @@ func TestKafkaInitialization(t *testing.T) {
 }
 
 func TestSendMessageAndReadMessage(t *testing.T) {
+	defer KafkaService.KafkaClose()
 	// 发送消息
 	err := KafkaService.ChatWriter.WriteMessages(context.Background(), kafka.Message{
 		Value: []byte("unit-test-message"),

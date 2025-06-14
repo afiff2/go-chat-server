@@ -40,35 +40,50 @@ func Login(c *gin.Context) {
 	SendResponse(c, message, ret, userInfo)
 }
 
-// // SmsLogin 验证码登录
-// func SmsLogin(c *gin.Context) {
-// 	var req request.SmsLoginRequest
-// 	if err := c.BindJSON(&req); err != nil {
-// 		zlog.Error(err.Error())
-// 		c.JSON(http.StatusOK, gin.H{
-// 			"code":    500,
-// 			"message": constants.SYSTEM_ERROR,
-// 		})
-// 		return
-// 	}
-// 	message, userInfo, ret := gorm.UserInfoService.SmsLogin(req)
-// 	JsonBack(c, message, ret, userInfo)
-// }
+// DeleteUsers 删除用户
+func DeleteUsers(c *gin.Context) {
+	var req request.AbleUsersRequest
+	if err := c.BindJSON(&req); err != nil {
+		zlog.Error(err.Error())
+		c.JSON(http.StatusOK, gin.H{
+			"code":    500,
+			"message": constants.SYSTEM_ERROR,
+		})
+		return
+	}
+	message, ret := gorm.UserInfoService.DeleteUsers(req.UuidList)
+	SendResponse(c, message, ret, nil)
+}
 
-// // UpdateUserInfo 修改用户信息
-// func UpdateUserInfo(c *gin.Context) {
-// 	var req request.UpdateUserInfoRequest
-// 	if err := c.BindJSON(&req); err != nil {
-// 		zlog.Error(err.Error())
-// 		c.JSON(http.StatusOK, gin.H{
-// 			"code":    500,
-// 			"message": constants.SYSTEM_ERROR,
-// 		})
-// 		return
-// 	}
-// 	message, ret := gorm.UserInfoService.UpdateUserInfo(req)
-// 	JsonBack(c, message, ret, nil)
-// }
+// GetUserInfo 获取用户信息
+func GetUserInfo(c *gin.Context) {
+	var req request.GetUserInfoRequest
+	if err := c.BindJSON(&req); err != nil {
+		zlog.Error(err.Error())
+		c.JSON(http.StatusOK, gin.H{
+			"code":    500,
+			"message": constants.SYSTEM_ERROR,
+		})
+		return
+	}
+	message, userInfo, ret := gorm.UserInfoService.GetUserInfo(req.Uuid)
+	SendResponse(c, message, ret, userInfo)
+}
+
+// UpdateUserInfo 修改用户信息
+func UpdateUserInfo(c *gin.Context) {
+	var req request.UpdateUserInfoRequest
+	if err := c.BindJSON(&req); err != nil {
+		zlog.Error(err.Error())
+		c.JSON(http.StatusOK, gin.H{
+			"code":    500,
+			"message": constants.SYSTEM_ERROR,
+		})
+		return
+	}
+	message, ret := gorm.UserInfoService.UpdateUserInfo(req)
+	SendResponse(c, message, ret, nil)
+}
 
 // // GetUserInfoList 获取用户列表
 // func GetUserInfoList(c *gin.Context) {
@@ -114,36 +129,6 @@ func Login(c *gin.Context) {
 // 	message, ret := gorm.UserInfoService.DisableUsers(req.UuidList)
 // 	JsonBack(c, message, ret, nil)
 // }
-
-// // GetUserInfo 获取用户信息
-// func GetUserInfo(c *gin.Context) {
-// 	var req request.GetUserInfoRequest
-// 	if err := c.BindJSON(&req); err != nil {
-// 		zlog.Error(err.Error())
-// 		c.JSON(http.StatusOK, gin.H{
-// 			"code":    500,
-// 			"message": constants.SYSTEM_ERROR,
-// 		})
-// 		return
-// 	}
-// 	message, userInfo, ret := gorm.UserInfoService.GetUserInfo(req.Uuid)
-// 	JsonBack(c, message, ret, userInfo)
-// }
-
-// DeleteUsers 删除用户
-func DeleteUsers(c *gin.Context) {
-	var req request.AbleUsersRequest
-	if err := c.BindJSON(&req); err != nil {
-		zlog.Error(err.Error())
-		c.JSON(http.StatusOK, gin.H{
-			"code":    500,
-			"message": constants.SYSTEM_ERROR,
-		})
-		return
-	}
-	message, ret := gorm.UserInfoService.DeleteUsers(req.UuidList)
-	SendResponse(c, message, ret, nil)
-}
 
 // // SetAdmin 设置管理员
 // func SetAdmin(c *gin.Context) {
