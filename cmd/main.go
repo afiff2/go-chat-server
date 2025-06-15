@@ -12,7 +12,7 @@ import (
 func main() {
 
 	go func() {
-		if err := https_server.GE.Run(":8080"); err != nil {
+		if err := https_server.GinEngine.Run(":8080"); err != nil {
 			zlog.Fatal("server running fault")
 			return
 		}

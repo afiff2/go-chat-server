@@ -26,38 +26,22 @@ type userInfoService struct {
 
 var UserInfoService = new(userInfoService)
 
-func setUserInfoCache(userInfo *respond.GetUserInfoRespond) error {
-	cacheKey := "user_info_" + userInfo.Uuid
-	rspBytes, err := json.Marshal(userInfo)
-	if err != nil {
-		zlog.Error("用户信息序列化失败", zap.Error(err))
-		return err
-	}
-	err = myredis.SetKeyEx(cacheKey, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
-	if err != nil {
-		zlog.Error("写入 Redis 缓存失败", zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-// Login 登录
+// Login 登录，需要密码，不从redis查找
 func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond.GetUserInfoRespond, int) {
-	password := loginReq.Password
 	var user model.UserInfo
 	if res := dao.GormDB.First(&user, "telephone = ?", loginReq.Telephone); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			message := "用户不存在，请注册"
-			zlog.Info(message)
+			zlog.Debug(message)
 			return message, nil, constants.BizCodeInvalid
 		}
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 	}
 	// 使用哈希验证密码
-	if !myhash.CheckPasswordHash(password, user.Password) {
+	if !myhash.CheckPasswordHash(loginReq.Password, user.Password) {
 		message := "密码不正确，请重试"
-		zlog.Info(message)
+		zlog.Debug(message)
 		return message, nil, constants.BizCodeInvalid
 	}
 
@@ -77,14 +61,14 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 	// year, month, day := user.CreatedAt.Date()
 	// loginRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 	// 将用户信息写入 Redis 缓存
-	if err := setUserInfoCache(loginRsp); err != nil {
+	if err := SetCache("user_info", loginRsp.Uuid, loginRsp); err != nil {
 		return "登陆成功, 写入 Redis 缓存失败", loginRsp, constants.BizCodeSuccess
 	}
 
 	return "登陆成功", loginRsp, constants.BizCodeSuccess
 }
 
-// Register 注册，返回(message, register_respond_string, error)
+// Register 注册，大概率改动数据库，不从redis查找
 func (u *userInfoService) Register(registerReq request.RegisterRequest) (string, *respond.GetUserInfoRespond, int) {
 	// 加密密码
 	hashedPassword, err := myhash.HashPassword(registerReq.Password)
@@ -99,7 +83,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		Where("telephone = ?", registerReq.Telephone).
 		First(&user); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			zlog.Info("该电话不存在，可以注册")
+			zlog.Debug("该电话不存在，可以注册")
 		} else {
 			zlog.Error(res.Error.Error())
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
@@ -133,13 +117,13 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				IsAdmin:   user.IsAdmin,
 				Status:    user.Status,
 			}
-			if err := setUserInfoCache(registerRsp); err != nil {
+			if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
 				return "注册成功（恢复历史账号）, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
 			}
 			return "注册成功（恢复历史账号）", registerRsp, constants.BizCodeSuccess
 		}
 		// 正常存在且未删除
-		zlog.Info("该电话已经存在，注册失败")
+		zlog.Debug("该电话已经存在，注册失败")
 		return "该电话已经存在，注册失败", nil, constants.BizCodeInvalid
 	}
 
@@ -180,7 +164,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	// registerRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 
 	// 将用户信息写入 Redis 缓存
-	if err := setUserInfoCache(registerRsp); err != nil {
+	if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
 		return "注册成功, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
 	}
 
@@ -208,20 +192,20 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 // GetUserInfo 获取用户信息
 func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfoRespond, int) {
 	// 优先查找redis
-	zlog.Info(uuid)
+	zlog.Debug(uuid)
 	cacheKey := "user_info_" + uuid
 	rspString, err := myredis.GetKeyNilIsErr(cacheKey)
 	if err != nil {
 		//redis中没有
 		if errors.Is(err, redis.Nil) {
-			zlog.Info("Redis 缓存未命中，回库读取", zap.String("key", cacheKey))
+			zlog.Debug("Redis 缓存未命中，回库读取", zap.String("key", cacheKey))
 		} else {
 			zlog.Warn("Redis 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
 		}
 		var user model.UserInfo
 		if res := dao.GormDB.First(&user, "uuid = ?", uuid); res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				zlog.Info("该用户不存在，修改失败")
+				zlog.Debug("该用户不存在，修改失败")
 				return "该用户不存在，修改失败", nil, constants.BizCodeInvalid
 			}
 			zlog.Error(res.Error.Error())
@@ -241,7 +225,7 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 			Status:    user.Status,
 		}
 		// 将用户信息写入 Redis 缓存
-		if err := setUserInfoCache(&rsp); err != nil {
+		if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
 			return "获取用户信息成功, 写入 Redis 缓存失败", &rsp, constants.BizCodeSuccess
 		}
 		return "获取用户信息成功(来自数据库)", &rsp, constants.BizCodeSuccess
@@ -262,7 +246,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 	var user model.UserInfo
 	if res := dao.GormDB.First(&user, "uuid = ?", updateReq.Uuid); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			zlog.Info("该用户不存在，修改失败")
+			zlog.Debug("该用户不存在，修改失败")
 			return "该用户不存在，修改失败", constants.BizCodeInvalid
 		}
 		zlog.Error(res.Error.Error())
@@ -301,7 +285,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 		Status:    user.Status,
 	}
 	// 将用户信息写入 Redis 缓存
-	if err := setUserInfoCache(&rsp); err != nil {
+	if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
 		return "修改用户信息成功,写入 Redis 缓存失败", constants.BizCodeSuccess
 	}
 

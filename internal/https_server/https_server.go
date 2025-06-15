@@ -5,16 +5,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var GE *gin.Engine
+var GinEngine *gin.Engine
 
 func init() {
-	GE = gin.Default()
+	GinEngine = gin.Default()
 
-	userGroup := GE.Group("/user")
+	userGroup := GinEngine.Group("/user")
 	{
 		userGroup.POST("/register", v1.Register)
 		userGroup.POST("/login", v1.Login)
 		userGroup.POST("/delete", v1.DeleteUsers)
+		userGroup.POST("/get", v1.GetUserInfo)
+		userGroup.POST("/update", v1.UpdateUserInfo)
 	}
 
 }
