@@ -56,7 +56,7 @@ func InitLogger(logPath, levelStr, env string) error {
 		zapcore.NewCore(encoder, writeSyncer, atomicLevel),
 	)
 
-	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
+	logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zap.ErrorLevel)) //跳过一层调用栈, 防止zlog/logger.go:132
 	return nil
 }
 
