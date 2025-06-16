@@ -16,23 +16,31 @@ func TestDelKeyIfExists_Basic(t *testing.T) {
 	err := DelKeyIfExists(key)
 	assert.NoError(t, err)
 
-	val, _ := GetKey(key)
+	// 删除后再读，应返回 redis.Nil
+	val, err := GetKeyNilIsErr(key)
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 
 	// Case 2: Key 不存在
 	err = DelKeyIfExists("nonexistent_key")
 	assert.NoError(t, err)
+
+	val, err = GetKeyNilIsErr("nonexistent_key")
+	assert.ErrorIs(t, err, redis.Nil)
+	assert.Empty(t, val)
 }
 
-func TestSetAndGetKey(t *testing.T) {
+func TestSetAndGetKeyNilIsErr(t *testing.T) {
 	key := "testkey"
 	value := "testvalue"
 	expiration := 1 * time.Second
 
+	// 写入
 	err := SetKeyEx(key, value, expiration)
 	assert.NoError(t, err)
 
-	val, err := GetKey(key)
+	// 读出
+	val, err := GetKeyNilIsErr(key)
 	assert.NoError(t, err)
 	assert.Equal(t, value, val)
 
@@ -40,24 +48,22 @@ func TestSetAndGetKey(t *testing.T) {
 	DelKeyIfExists(key)
 }
 
-func TestGetKey_NotExists(t *testing.T) {
-
+func TestGetKeyNilIsErr_NotExists(t *testing.T) {
 	key := "nonexistentkey"
-	val, err := GetKey(key)
-	assert.NoError(t, err)
+	val, err := GetKeyNilIsErr(key)
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
 
 func TestDelKeyIfExists_KeyExists(t *testing.T) {
-
 	key := "deltest"
 	SetKeyEx(key, "val", 5*time.Second)
 
 	err := DelKeyIfExists(key)
 	assert.NoError(t, err)
 
-	// 再次获取应为空
-	val, _ := GetKey(key)
+	val, err := GetKeyNilIsErr(key)
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
 
@@ -75,8 +81,7 @@ func TestGetKeyNilIsErr_KeyExists(t *testing.T) {
 func TestGetKeyNilIsErr_KeyNotExists(t *testing.T) {
 	key := "nonexistent_get_nil_is_err"
 	val, err := GetKeyNilIsErr(key)
-	assert.Error(t, err)
-	assert.EqualError(t, err, redis.Nil.Error())
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
 
@@ -93,8 +98,7 @@ func TestGetKeyWithPrefixNilIsErr_KeyFound(t *testing.T) {
 
 func TestGetKeyWithPrefixNilIsErr_NoKey(t *testing.T) {
 	result, err := GetKeyWithPrefixNilIsErr("nonexistent_prefix:")
-	assert.Error(t, err)
-	assert.EqualError(t, err, redis.Nil.Error())
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, result)
 }
 
@@ -122,8 +126,7 @@ func TestGetKeyWithSuffixNilIsErr_KeyFound(t *testing.T) {
 
 func TestGetKeyWithSuffixNilIsErr_NoKey(t *testing.T) {
 	result, err := GetKeyWithSuffixNilIsErr("_suffix:")
-	assert.Error(t, err)
-	assert.EqualError(t, err, redis.Nil.Error())
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, result)
 }
 
@@ -151,9 +154,11 @@ func TestDelKeysWithPattern_Match(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 验证是否删除
-	val, _ := GetKey("pattern:a")
+	val, err := GetKeyNilIsErr("pattern:a")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
-	val, _ = GetKey("pattern:b")
+	val, err = GetKeyNilIsErr("pattern:b")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
 
@@ -165,9 +170,11 @@ func TestDelKeysWithPrefix(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 验证是否删除
-	val, _ := GetKey("user:1")
+	val, err := GetKeyNilIsErr("user:1")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
-	val, _ = GetKey("user:2")
+	val, err = GetKeyNilIsErr("user:2")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
 
@@ -179,10 +186,13 @@ func TestDelKeysWithSuffix(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 验证是否删除
-	val, _ := GetKey("data:log1")
+	val, err := GetKeyNilIsErr("data:log1")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
-	val, _ = GetKey("data:log2") // 不该删
-	assert.NotEmpty(t, val)
+	// data:log2 不应被删除
+	val2, err2 := GetKeyNilIsErr("data:log2")
+	assert.NoError(t, err2)
+	assert.NotEmpty(t, val2)
 }
 
 func TestDeleteAllRedisKeys(t *testing.T) {
@@ -193,8 +203,10 @@ func TestDeleteAllRedisKeys(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 验证是否清空
-	val, _ := GetKey("key1")
+	val, err := GetKeyNilIsErr("key1")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
-	val, _ = GetKey("key2")
+	val, err = GetKeyNilIsErr("key2")
+	assert.ErrorIs(t, err, redis.Nil)
 	assert.Empty(t, val)
 }
