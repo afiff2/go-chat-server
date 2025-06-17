@@ -1,15 +1,28 @@
 package gorm
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/afiff2/go-chat-server/internal/dao"
 	"github.com/afiff2/go-chat-server/internal/dto/request"
+	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/constants"
 	"github.com/afiff2/go-chat-server/pkg/enum/user_info/user_status_enum"
 )
+
+func TestMain(m *testing.M) {
+
+	code := m.Run()
+
+	myredis.Close()
+	dao.CloseDB()
+
+	os.Exit(code)
+}
 
 func TestUserFlow(t *testing.T) {
 	// 生成唯一电话号码避免冲突
@@ -182,7 +195,7 @@ func TestUserFlow(t *testing.T) {
 		assert.False(t, found2, "列表中不应该包含 uuid2")
 		assert.True(t, found3, "列表中应该包含 uuid3")
 
-		msg, code = UserInfoService.DeleteUsers([]string{uuid, uuid2})
+		msg, code = UserInfoService.DeleteUsers([]string{uuid, uuid2, uuid3})
 		assert.Equal(t, constants.BizCodeSuccess, code)
 		assert.Contains(t, msg, "删除用户成功")
 	})

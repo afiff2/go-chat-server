@@ -33,6 +33,17 @@ func init() {
 	}
 }
 
+func Close() {
+	if redisClient == nil {
+		return
+	}
+	if err := redisClient.Close(); err != nil {
+		zlog.Error("Redis 关闭失败", zap.Error(err))
+	} else {
+		zlog.Info("Redis 已关闭")
+	}
+}
+
 func SetKeyEx(key string, value string, timeout time.Duration) error {
 	err := redisClient.Set(ctx, key, value, timeout).Err()
 	if err != nil {
@@ -149,6 +160,9 @@ func deleteByPatternBatch(pattern string) error {
 	}
 	return nil
 }
+func DelKeysWithPattern(prefix string) error {
+	return deleteByPatternBatch(prefix)
+}
 
 func DelKeysWithPrefix(prefix string) error {
 	return deleteByPatternBatch(prefix + "*")
@@ -158,7 +172,8 @@ func DelKeysWithSuffix(suffix string) error {
 }
 
 func DeleteAllRedisKeys() error {
-	return deleteByPatternBatch("*")
+	//return deleteByPatternBatch("*")
+	return redisClient.FlushDB(ctx).Err()
 }
 
 // DelKeys 批量删除给定的一组 key，底层使用 pipeline，

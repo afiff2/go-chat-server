@@ -1,35 +1,49 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/afiff2/go-chat-server/internal/dao"
 	"github.com/afiff2/go-chat-server/internal/https_server"
 	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
+	"go.uber.org/zap"
 )
 
 func main() {
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: https_server.GinEngine,
+	}
 
 	go func() {
-		if err := https_server.GinEngine.Run(":8080"); err != nil {
-			zlog.Fatal("server running fault")
-			return
+		zlog.Info("HTTP 服务启动", zap.String("addr", srv.Addr))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			zlog.Fatal("HTTP 服务异常退出", zap.Error(err))
 		}
 	}()
 
-	// 设置信号监听
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit // 阻塞直到收到 SIGINT/SIGTERM
 
-	// 等待信号
-	<-quit
+	zlog.Info("收到退出信号，开始关机")
 
-	// 删除所有Redis键
-	if err := myredis.DeleteAllRedisKeys(); err != nil {
-		zlog.Error(err.Error())
+	//关闭 HTTP 服务，给 5 秒时间处理未完成请求
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		zlog.Warn("HTTP 关机失败，强制关闭", zap.Error(err))
 	} else {
-		zlog.Info("所有Redis键已删除")
+		zlog.Info("HTTP 服务已关闭")
 	}
+
+	myredis.Close()
+	dao.CloseDB()
+	zlog.Info("所有资源已清理，程序退出")
 }

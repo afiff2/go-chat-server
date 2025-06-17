@@ -39,3 +39,16 @@ func init() {
 
 	zlog.Info("数据库连接和自动迁移成功")
 }
+
+func CloseDB() {
+	sqlDB, err := GormDB.DB()
+	if err != nil {
+		zlog.Error("获取底层 sql.DB 失败，无法关闭", zap.Error(err))
+		return
+	}
+	if err := sqlDB.Close(); err != nil {
+		zlog.Error("关闭数据库连接失败", zap.Error(err))
+	} else {
+		zlog.Info("数据库连接已关闭")
+	}
+}

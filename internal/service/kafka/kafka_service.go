@@ -6,6 +6,7 @@ import (
 	"github.com/afiff2/go-chat-server/internal/config"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
 	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
 )
 
 var KafkaService *kafkaService
@@ -41,13 +42,14 @@ func init() {
 	}
 }
 
-func (k *kafkaService) KafkaClose() {
+func (k *kafkaService) Close() {
 	if err := k.ChatWriter.Close(); err != nil {
-		zlog.Error(err.Error())
+		zlog.Error("关闭 Kafka 写入器失败", zap.Error(err))
 	}
 	if err := k.ChatReader.Close(); err != nil {
-		zlog.Error(err.Error())
+		zlog.Error("关闭 Kafka 读取器失败", zap.Error(err))
 	}
+	zlog.Info("Kafka 连接已成功关闭")
 }
 
 // CreateTopic 创建topic

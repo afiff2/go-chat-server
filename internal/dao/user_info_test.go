@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -9,6 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
+
+func TestMain(m *testing.M) {
+	// 如果需要的话，这里可以做一些初始化，比如清空 Redis、重建 DB 表等
+
+	code := m.Run() // 先跑所有 TestXXX
+
+	CloseDB()
+
+	os.Exit(code)
+}
 
 func TestCreateUser(t *testing.T) {
 	zlog.Info("开始执行 TestCreateUser")
