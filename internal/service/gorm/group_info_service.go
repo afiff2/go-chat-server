@@ -106,6 +106,25 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 		// 如果是其他 Redis 错误（不是 key 不存在）
 		zlog.Warn("读取 Redis 缓存失败", zap.Error(err))
 	}
+	rsp2, err2 := myredis.GetKeyNilIsErr("my_joined_group_list_" + groupReq.OwnerId)
+	if err2 == nil {
+		// 如果已有缓存，追加新群
+		var joined []respond.LoadMyGroupRespond
+		if err := json.Unmarshal([]byte(rsp2), &joined); err != nil {
+			zlog.Warn("反序列化 my_joined_group_list 缓存失败，跳过更新", zap.Error(err))
+		} else {
+			joined = append(joined, respond.LoadMyGroupRespond{
+				GroupId:   group.Uuid,
+				GroupName: group.Name,
+				Avatar:    group.Avatar,
+			})
+			if err := SetCache("my_joined_group_list", groupReq.OwnerId, &joined); err != nil {
+				zlog.Warn("更新 Redis 缓存失败", zap.Error(err))
+			}
+		}
+	} else if !errors.Is(err2, redis.Nil) {
+		zlog.Warn("读取 Redis my_joined_group_list 缓存失败", zap.Error(err2))
+	}
 
 	return "创建成功", constants.BizCodeSuccess
 }

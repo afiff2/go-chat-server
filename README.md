@@ -36,16 +36,16 @@ Broker 数量应 ≥ ReplicationFactor（副本因子）
 
 
 Redis表
-user_info_{userId}
-contact_mygroup_list_{userId}
-my_joined_group_list_{userId}
-"contact_user_list_" + userId
-message_list_{userOneId}_{userTwoId}
-group_messagelist_{groupId}
-group_info_{groupId}
-group_memberlist_{groupId}
-"session_list_" + ownerId
-("group_session_list_" + ownerId)
+user_info_{userId}            //用户信息
+contact_mygroup_list_{userId} //我创建的群组
+my_joined_group_list_{userId} //我加入的群组
+"contact_user_list_" + userId //我的好友列表
+message_list_{userOneId}_{userTwoId} //消息列表
+group_messagelist_{groupId} //组中message
+group_info_{groupId}        //组的信息
+group_memberlist_{groupId}  //组中的人
+"session_list_" + ownerId   //（创建会话人id）会话（人）列表
+("group_session_list_" + ownerId) //（创建会话人id）会话（组）列表
 
 
 

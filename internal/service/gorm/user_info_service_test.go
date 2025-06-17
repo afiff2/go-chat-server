@@ -8,13 +8,8 @@ import (
 
 	"github.com/afiff2/go-chat-server/internal/dto/request"
 	"github.com/afiff2/go-chat-server/pkg/constants"
+	"github.com/afiff2/go-chat-server/pkg/enum/user_info/user_status_enum"
 )
-
-// 初始化数据库和 Redis
-func init() {
-	// 假设 dao.GormDB 和 redis.Client 已经在 init 中初始化好了
-	// 如果没有，请手动调用一次初始化函数
-}
 
 func TestUserFlow(t *testing.T) {
 	// 生成唯一电话号码避免冲突
@@ -103,9 +98,92 @@ func TestUserFlow(t *testing.T) {
 
 		_, userInfo, _ := UserInfoService.GetUserInfo(uuid)
 		assert.Equal(t, "test_user_again", userInfo.Nickname)
+	})
 
-		msg2, code2 := UserInfoService.DeleteUsers([]string{uuid})
+	testTel2 := "13800000002"
+	var uuid2 string
+	t.Run("Register2", func(t *testing.T) {
+		req := request.RegisterRequest{
+			Telephone: testTel2,
+			Password:  "password123",
+			Nickname:  "flow_user2",
+		}
+		_, rsp, code := UserInfoService.Register(req)
+		require.Equal(t, constants.BizCodeSuccess, code)
+		uuid2 = rsp.Uuid
+	})
+
+	t.Run("DisableUsers", func(t *testing.T) {
+		// 禁用用户
+		msg, code := UserInfoService.DisableUsers([]string{uuid2})
+		assert.Equal(t, constants.BizCodeSuccess, code)
+		assert.Contains(t, msg, "禁用用户成功")
+
+		// 再 Get，一定会回库 —— 因为缓存被删了
+		msg2, _, code2 := UserInfoService.GetUserInfo(uuid2)
 		assert.Equal(t, constants.BizCodeSuccess, code2)
-		assert.Contains(t, msg2, "删除用户成功")
+		assert.Contains(t, msg2, "获取用户信息成功")
+	})
+
+	t.Run("AbleUsers", func(t *testing.T) {
+		// 启用用户
+		msg, code := UserInfoService.AbleUsers([]string{uuid2})
+		assert.Equal(t, constants.BizCodeSuccess, code)
+		assert.Contains(t, msg, "启用用户成功")
+
+		// 确保状态 NORMAL
+		_, info, _ := UserInfoService.GetUserInfo(uuid2)
+		assert.Equal(t, (int8)(user_status_enum.NORMAL), info.Status)
+	})
+
+	t.Run("SetAdmin", func(t *testing.T) {
+		// 设置管理员状态
+		msg, code := UserInfoService.SetAdmin([]string{uuid2}, 1)
+		assert.Equal(t, constants.BizCodeSuccess, code)
+		assert.Contains(t, msg, "设置管理员成功")
+
+		// 再拉一次，检查 IsAdmin 字段
+		_, info, _ := UserInfoService.GetUserInfo(uuid2)
+		assert.Equal(t, int8(1), info.IsAdmin)
+	})
+
+	testTel3 := "13800000003"
+	var uuid3 string
+
+	t.Run("GetUserInfoList", func(t *testing.T) {
+		req := request.RegisterRequest{
+			Telephone: testTel3,
+			Password:  "password321",
+			Nickname:  "flow_user3",
+		}
+		_, rsp, code := UserInfoService.Register(req)
+		require.Equal(t, constants.BizCodeSuccess, code)
+		uuid3 = rsp.Uuid
+
+		// 列表里应该能看到刚才注册的两个用户（除了自己）
+		msg, list, code := UserInfoService.GetUserInfoList(uuid2)
+		assert.Equal(t, constants.BizCodeSuccess, code)
+		assert.Contains(t, msg, "获取用户列表成功")
+
+		// var 一次声明多个 bool
+		var found1, found2, found3 bool
+		for _, u := range list {
+			if u.Uuid == uuid {
+				found1 = true
+			}
+			if u.Uuid == uuid2 {
+				found2 = true
+			}
+			if u.Uuid == uuid3 {
+				found3 = true
+			}
+		}
+		assert.True(t, found1, "列表中应该包含 uuid1")
+		assert.False(t, found2, "列表中不应该包含 uuid2")
+		assert.True(t, found3, "列表中应该包含 uuid3")
+
+		msg, code = UserInfoService.DeleteUsers([]string{uuid, uuid2})
+		assert.Equal(t, constants.BizCodeSuccess, code)
+		assert.Contains(t, msg, "删除用户成功")
 	})
 }

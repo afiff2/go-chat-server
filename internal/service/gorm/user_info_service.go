@@ -11,7 +11,7 @@ import (
 	"github.com/afiff2/go-chat-server/internal/model"
 	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/constants"
-	"github.com/afiff2/go-chat-server/pkg/enum/user_status_enum"
+	"github.com/afiff2/go-chat-server/pkg/enum/user_info/user_status_enum"
 	myhash "github.com/afiff2/go-chat-server/pkg/util/hash"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
 	"github.com/go-redis/redis/v8"
@@ -184,9 +184,10 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
-	if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
-		zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
-	}
+	//被删掉应该不会再访问这个user，等待redis自然清除
+	// if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
+	// 	zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
+	// }
 	return "删除用户成功", constants.BizCodeSuccess
 }
 
@@ -291,4 +292,99 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 	}
 
 	return "修改用户信息成功", constants.BizCodeSuccess
+}
+
+// GetUserInfoList 获取用户列表除了ownerId之外 - 管理员
+// 管理员少，而且如果用户更改了，那么管理员会一直频繁删除redis，更新redis，比较麻烦，所以管理员暂时不使用redis缓存
+func (u *userInfoService) GetUserInfoList(ownerId string) (string, []respond.GetUserListRespond, int) {
+	// redis中没有数据，从数据库中获取
+	var users []model.UserInfo
+	// 获取所有的用户(包括被软删除的)
+	if res := dao.GormDB.Unscoped().Where("uuid != ?", ownerId).Find(&users); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+	}
+	var rsp []respond.GetUserListRespond
+	for _, user := range users {
+		rp := respond.GetUserListRespond{
+			Uuid:      user.Uuid,
+			Telephone: user.Telephone,
+			Nickname:  user.Nickname,
+			Status:    user.Status,
+			IsAdmin:   user.IsAdmin,
+			IsDeleted: user.DeletedAt.Valid,
+		}
+		rsp = append(rsp, rp)
+	}
+	return "获取用户列表成功", rsp, constants.BizCodeSuccess
+}
+
+// AbleUsers 启用用户
+// 用户是否启用/禁用需要实时更新 contact_user_list 状态，所以要删除对应的 Redis 缓存
+func (u *userInfoService) AbleUsers(uuidList []string) (string, int) {
+	// 一条 SQL 更新所有用户状态
+	if res := dao.GormDB.
+		Model(&model.UserInfo{}).
+		Where("uuid IN ?", uuidList).
+		Update("status", user_status_enum.NORMAL); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+		zlog.Warn("删除用户缓存失败", zap.Error(err))
+	}
+	// // 删除所有 "contact_user_list" 开头的 key
+	// if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+	//     zlog.Error(err.Error())
+	// }
+
+	return "启用用户成功", constants.BizCodeSuccess
+}
+
+// DisableUsers 禁用用户
+// 用户启用/禁用需要实时更新 contact_user_list 状态，所以要删除对应的 Redis 缓存
+func (u *userInfoService) DisableUsers(uuidList []string) (string, int) {
+	// 批量将用户状态置为 DISABLE
+	if res := dao.GormDB.
+		Model(&model.UserInfo{}).
+		Where("uuid IN ?", uuidList).
+		Update("status", user_status_enum.DISABLE); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 批量软删除所有相关会话
+	if res := dao.GormDB.
+		Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).
+		Delete(&model.Session{}); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+		zlog.Warn("删除用户缓存失败", zap.Error(err))
+	}
+	// // 删除所有 "contact_user_list" 前缀的 Redis key
+	// if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+	// 	zlog.Error(err.Error())
+	// }
+
+	return "禁用用户成功", constants.BizCodeSuccess
+}
+
+// SetAdmin 设置管理员
+func (u *userInfoService) SetAdmin(uuidList []string, isAdmin int8) (string, int) {
+	// 一条 SQL 把所有指定 UUID 的用户 is_admin 字段更新为 isAdmin
+	if res := dao.GormDB.
+		Model(&model.UserInfo{}).
+		Where("uuid IN ?", uuidList).
+		Update("is_admin", isAdmin); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+		zlog.Warn("删除用户缓存失败", zap.Error(err))
+	}
+
+	return "设置管理员成功", constants.BizCodeSuccess
 }
