@@ -132,7 +132,7 @@ func DeleteGroups(c *gin.Context) {
 		})
 		return
 	}
-	message, ret := gorm.GroupInfoService.DeleteGroups(req.UuidList)
+	message, ret := gorm.GroupInfoService.DeleteGroupsByAdmin(req.UuidList)
 	SendResponse(c, message, ret, nil)
 }
 

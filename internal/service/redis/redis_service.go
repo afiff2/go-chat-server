@@ -77,12 +77,12 @@ func GetKeyWithPrefixNilIsErr(prefix string) (string, error) {
 	}
 
 	if len(keys) == 0 {
-		zlog.Info("没有找到相关前缀key")
+		zlog.Debug("没有找到相关前缀key")
 		return "", redis.Nil
 	}
 
 	if len(keys) == 1 {
-		zlog.Info("成功找到了相关前缀 key", zap.Strings("keys", keys))
+		zlog.Debug("成功找到了相关前缀 key", zap.Strings("keys", keys))
 		return keys[0], nil
 	} else {
 		zlog.Error("找到了数量大于1的key，查找异常")
@@ -101,12 +101,12 @@ func GetKeyWithSuffixNilIsErr(suffix string) (string, error) {
 	}
 
 	if len(keys) == 0 {
-		zlog.Info("没有找到相关后缀key")
+		zlog.Debug("没有找到相关后缀key")
 		return "", redis.Nil
 	}
 
 	if len(keys) == 1 {
-		zlog.Info("成功找到了相关后缀key", zap.Strings("keys", keys))
+		zlog.Debug("成功找到了相关后缀key", zap.Strings("keys", keys))
 		return keys[0], nil
 	} else {
 		zlog.Error("找到了数量大于1的key，查找异常")
@@ -116,7 +116,6 @@ func GetKeyWithSuffixNilIsErr(suffix string) (string, error) {
 }
 
 func DelKeyIfExists(key string) error {
-
 	delErr := redisClient.Del(ctx, key).Err()
 	if delErr != nil {
 		return delErr
@@ -139,7 +138,7 @@ func deleteByPatternBatch(pattern string) error {
 			if _, err := redisClient.Del(ctx, keys...).Result(); err != nil {
 				return err
 			}
-			zlog.Info("成功删除一批 Redis key", zap.Int("count", len(keys)), zap.String("pattern", pattern))
+			zlog.Debug("成功删除一批 Redis key", zap.Int("count", len(keys)), zap.String("pattern", pattern))
 		}
 
 		// 游标归零说明扫描完毕
@@ -151,9 +150,6 @@ func deleteByPatternBatch(pattern string) error {
 	return nil
 }
 
-func DelKeysWithPattern(pattern string) error {
-	return deleteByPatternBatch(pattern)
-}
 func DelKeysWithPrefix(prefix string) error {
 	return deleteByPatternBatch(prefix + "*")
 }

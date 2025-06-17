@@ -118,7 +118,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				Status:    user.Status,
 			}
 			if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
-				return "注册成功（恢复历史账号）, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
+				zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 			}
 			return "注册成功（恢复历史账号）", registerRsp, constants.BizCodeSuccess
 		}
@@ -165,7 +165,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 
 	// 将用户信息写入 Redis 缓存
 	if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
-		return "注册成功, 写入 Redis 缓存失败", registerRsp, constants.BizCodeSuccess
+		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
 	return "注册成功", registerRsp, constants.BizCodeSuccess
@@ -181,11 +181,12 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	if err := myredis.DelKeysWithPrefixA("user_info_", uuidList); err != nil {
+	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
-		return "删除用户成功，清理缓存失败", constants.BizCodeSuccess
 	}
-
+	if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
+		zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
+	}
 	return "删除用户成功", constants.BizCodeSuccess
 }
 
@@ -205,8 +206,8 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 		var user model.UserInfo
 		if res := dao.GormDB.First(&user, "uuid = ?", uuid); res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				zlog.Debug("该用户不存在，修改失败")
-				return "该用户不存在，修改失败", nil, constants.BizCodeInvalid
+				zlog.Debug("该用户不存在，查找失败")
+				return "该用户不存在，查找失败", nil, constants.BizCodeInvalid
 			}
 			zlog.Error(res.Error.Error())
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
@@ -226,17 +227,17 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 		}
 		// 将用户信息写入 Redis 缓存
 		if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
-			return "获取用户信息成功, 写入 Redis 缓存失败", &rsp, constants.BizCodeSuccess
+			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
-		return "获取用户信息成功(来自数据库)", &rsp, constants.BizCodeSuccess
+		return "获取用户信息成功", &rsp, constants.BizCodeSuccess
 	}
 	//redis中有
 	var rsp respond.GetUserInfoRespond
 	if err := json.Unmarshal([]byte(rspString), &rsp); err != nil {
 		zlog.Error(err.Error())
-		return "解析用户信息失败(Redis)", nil, constants.BizCodeError
+		return "解析用户信息失败", nil, constants.BizCodeError
 	}
-	return "获取用户信息成功(Redis)", &rsp, constants.BizCodeSuccess
+	return "获取用户信息成功", &rsp, constants.BizCodeSuccess
 }
 
 // UpdateUserInfo 修改用户信息
@@ -286,7 +287,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 	}
 	// 将用户信息写入 Redis 缓存
 	if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
-		return "修改用户信息成功,写入 Redis 缓存失败", constants.BizCodeSuccess
+		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
 	return "修改用户信息成功", constants.BizCodeSuccess

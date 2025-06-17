@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/afiff2/go-chat-server/internal/https_server"
+	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
 )
 
@@ -25,4 +26,10 @@ func main() {
 	// 等待信号
 	<-quit
 
+	// 删除所有Redis键
+	if err := myredis.DeleteAllRedisKeys(); err != nil {
+		zlog.Error(err.Error())
+	} else {
+		zlog.Info("所有Redis键已删除")
+	}
 }

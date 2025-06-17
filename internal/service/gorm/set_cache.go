@@ -11,10 +11,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// data必须是指针
 func SetCache[T any](prefix string, key string, data *T) error {
 	cacheKey := fmt.Sprintf("%s_%s", prefix, key)
 
-	rspBytes, err := json.Marshal(data)
+	rspBytes, err := json.Marshal(*data)
 	if err != nil {
 		zlog.Error("数据序列化失败", zap.Error(err))
 		return err
@@ -26,4 +27,20 @@ func SetCache[T any](prefix string, key string, data *T) error {
 		return err
 	}
 	return nil
+}
+
+// DelKeysWithPrefix 批量删除给定前缀 + 一组 uuid 对应的 keys，底层使用 pipeline
+func DelKeysByUUIDList(prefix string, uuids []string) error {
+	if len(uuids) == 0 {
+		return nil
+	}
+
+	// 拼出完整的 key 列表
+	keys := make([]string, 0, len(uuids))
+	for _, id := range uuids {
+		keys = append(keys, prefix+"_"+id)
+	}
+
+	// 调用已有的批量删除
+	return myredis.DelKeys(keys)
 }
