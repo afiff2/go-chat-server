@@ -3,7 +3,6 @@ package gorm
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/afiff2/go-chat-server/internal/dao"
@@ -29,6 +28,15 @@ var GroupInfoService = new(groupInfoService)
 
 // CreateGroup 创建群聊
 func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (string, int) {
+	// 开启事务
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			zlog.Error("CreateGroup panic, rollback", zap.Any("recover", r))
+			tx.Rollback()
+		}
+	}()
+
 	group := model.GroupInfo{
 		Uuid:      uuid.NewString(),
 		Name:      groupReq.Name,
@@ -46,10 +54,12 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 	group.Members, err = json.Marshal(members)
 	if err != nil {
 		zlog.Error(err.Error())
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	if res := dao.GormDB.Create(&group); res.Error != nil {
+	if res := tx.Create(&group); res.Error != nil {
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
@@ -62,8 +72,16 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	if res := dao.GormDB.Create(&contact); res.Error != nil {
+	if res := tx.Create(&contact); res.Error != nil {
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
@@ -179,7 +197,7 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 		}
 
 		// 批量写入  group_info_{groupId}  缓存
-		if err := myredis.SetStringKeys(cacheData, 30*time.Minute); err != nil {
+		if err := myredis.SetStringKeys(cacheData, constants.REDIS_TIMEOUT*time.Minute); err != nil {
 			zlog.Warn("批量写入 group_info 缓存失败", zap.Error(err))
 		}
 		// 写入 contact_mygroup_list_{ownerId} 缓存
@@ -224,7 +242,7 @@ func (g *groupInfoService) GetGroupInfo(groupId string) (string, *respond.GetGro
 			Status:    group.Status,
 			IsDeleted: group.DeletedAt.Valid,
 		}
-		if err := SetCache("group_info", groupId, &rsp); err != nil {
+		if err := SetCache("group_info", groupId, rsp); err != nil {
 			zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 		}
 		return "获取成功", rsp, constants.BizCodeSuccess
@@ -354,15 +372,33 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
+	//人数变化更新缓存
+	rsp := &respond.GetGroupInfoRespond{
+		Uuid:      group.Uuid,
+		Name:      group.Name,
+		Notice:    group.Notice,
+		Avatar:    group.Avatar,
+		MemberCnt: group.MemberCnt,
+		OwnerId:   group.OwnerId,
+		AddMode:   group.AddMode,
+		Status:    group.Status,
+		IsDeleted: group.DeletedAt.Valid,
+	}
+	if err := myredis.DelKeyIfExists("group_memberlist_" + groupId); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := SetCache("group_info", groupId, rsp); err != nil {
+		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
+	}
 	if err := myredis.DelKeyIfExists("group_session_list_" + userId); err != nil {
 		zlog.Error(err.Error())
 	}
 	if err := myredis.DelKeyIfExists("my_joined_group_list_" + userId); err != nil {
 		zlog.Error(err.Error())
 	}
-	// if err := myredis.DelKeyIfExists("session_" + userId + "_" + groupId); err != nil {
-	// 	zlog.Error(err.Error())
-	// }
+	if err := myredis.DelKeyIfExists("session_" + userId + "_" + groupId); err != nil {
+		zlog.Error(err.Error())
+	}
 	zlog.Info("用户退群成功", zap.String("userId", userId), zap.String("groupId", groupId))
 	return "退群成功", constants.BizCodeSuccess
 }
@@ -424,10 +460,16 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 	if err := myredis.DelKeyIfExists("contact_mygroup_list_" + ownerId); err != nil {
 		zlog.Error(err.Error())
 	}
-	if err := myredis.DelKeyIfExists("group_session_list_" + ownerId); err != nil {
+	if err := myredis.DelKeysWithPrefix("group_session_list"); err != nil {
 		zlog.Error(err.Error())
 	}
 	if err := myredis.DelKeysWithPrefix("my_joined_group_list"); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := myredis.DelKeysWithPattern("session_*_" + groupId); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := myredis.DelKeyIfExists("group_memberlist_" + groupId); err != nil {
 		zlog.Error(err.Error())
 	}
 	return "解散群聊成功", constants.BizCodeSuccess
@@ -513,6 +555,12 @@ func (g *groupInfoService) DeleteGroupsByAdmin(uuidList []string) (string, int) 
 	if err := myredis.DelKeysWithPrefix("my_joined_group_list"); err != nil {
 		zlog.Error(err.Error())
 	}
+	if err := DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := DelKeysByUUIDList("group_memberlist", uuidList); err != nil {
+		zlog.Error(err.Error())
+	}
 	return "解散/删除群聊成功", constants.BizCodeSuccess
 }
 
@@ -541,7 +589,7 @@ func (g *groupInfoService) CheckGroupAddMode(groupId string) (string, int8, int)
 			Status:    group.Status,
 			IsDeleted: group.DeletedAt.Valid,
 		}
-		if err := SetCache("group_info", groupId, &rsp); err != nil {
+		if err := SetCache("group_info", groupId, rsp); err != nil {
 			zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 		}
 		return "加群方式获取成功", group.AddMode, constants.BizCodeSuccess
@@ -577,9 +625,17 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
+	for _, m := range members {
+		if m == userId {
+			zlog.Warn("用户已在群里，直接退出", zap.String("userId", userId), zap.String("groupId", groupId))
+			tx.Rollback()
+			return "用户已在群里", constants.BizCodeInvalid
+		}
+	}
 	members = append(members, userId)
 	if data, err := json.Marshal(members); err != nil {
 		zlog.Error(err.Error())
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	} else {
 		group.Members = data
@@ -594,7 +650,7 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 	newContact := model.UserContact{
 		UserId:      userId,
 		ContactId:   groupId,
-		ContactType: contact_type_enum.GROUP,    // 用户
+		ContactType: contact_type_enum.GROUP,    // 群聊
 		Status:      contact_status_enum.NORMAL, // 正常
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -620,18 +676,22 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info", groupId, &rsp); err != nil {
+	if err := SetCache("group_info", groupId, rsp); err != nil {
 		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 	}
-	if err := myredis.DelKeyIfExists("group_session_list_" + userId); err != nil {
-		zlog.Error(err.Error())
-	}
+	// if err := myredis.DelKeyIfExists("group_session_list_" + userId); err != nil {
+	// 	zlog.Error(err.Error())
+	// }
 	if err := myredis.DelKeyIfExists("my_joined_group_list_" + userId); err != nil {
 		zlog.Error(err.Error())
 	}
 	//if err := myredis.DelKeyIfExists("session_" + ownerId + "_" + contactId); err != nil {
 	//	zlog.Error(err.Error())
 	//}
+	if err := myredis.DelKeyIfExists("group_memberlist_" + groupId); err != nil {
+		zlog.Error(err.Error())
+	}
+
 	return "进群成功", constants.BizCodeSuccess
 }
 
@@ -660,6 +720,15 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 
 	// 如果禁用群聊，批量删除会话记录
 	if status == group_status_enum.DISABLE {
+		//更新 UserContact 的状态为“群已禁用”
+		if res := tx.Model(&model.UserContact{}).
+			Where("contact_type = ? AND contact_id IN ?", contact_type_enum.GROUP, uuidList).
+			Update("status", contact_status_enum.GROUP_DISABLED); res.Error != nil {
+			zlog.Error("更新联系人状态失败", zap.Error(res.Error))
+			tx.Rollback()
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
+
 		if res := tx.Where("receive_id IN ?", uuidList).
 			Delete(&model.Session{}); res.Error != nil {
 			zlog.Error("批量删除会话失败", zap.Error(res.Error))
@@ -675,6 +744,15 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 
 	if err := DelKeysByUUIDList("group_info", uuidList); err != nil {
 		zlog.Warn("删除group_info缓存失败", zap.Error(err))
+	}
+
+	// group_session_list简单，内部不会修改
+	// if err := myredis.DelKeysWithPrefix("group_session_list"); err != nil {
+	// 	zlog.Error(err.Error())
+	// }
+
+	if err := DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
+		zlog.Error(err.Error())
 	}
 
 	return "设置成功", constants.BizCodeSuccess
@@ -712,7 +790,6 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 	for _, session := range sessionList {
 		session.ReceiveName = group.Name
 		session.Avatar = group.Avatar
-		log.Println(session)
 		if res := dao.GormDB.Save(&session); res.Error != nil {
 			zlog.Error(res.Error.Error())
 			return constants.SYSTEM_ERROR, constants.BizCodeError
@@ -735,8 +812,17 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 		zlog.Warn("预写 group_info 缓存失败", zap.String("groupId", group.Uuid), zap.Error(err))
 	}
 
+	if err := myredis.DelKeysWithPrefix("my_joined_group_list"); err != nil {
+		zlog.Error(err.Error())
+	}
 	if err := myredis.DelKeyIfExists("contact_mygroup_list_" + group.OwnerId); err != nil {
 		zlog.Error("删除 contact_mygroup_list 缓存失败", zap.String("ownerId", group.OwnerId), zap.Error(err))
+	}
+	if err := myredis.DelKeysWithPrefix("group_session_list"); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := myredis.DelKeysWithPattern("session_*_" + group.Uuid); err != nil {
+		zlog.Error(err.Error())
 	}
 	return "更新成功", constants.BizCodeSuccess
 }
@@ -903,11 +989,32 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 
 	// 6. 缓存清理：只清除被移除用户的缓存
 	for _, uuid := range toDelete {
-		myredis.DelKeyIfExists("group_session_list_" + uuid)
-		myredis.DelKeyIfExists("my_joined_group_list_" + uuid)
+		if err := myredis.DelKeyIfExists("group_session_list_" + uuid); err != nil {
+			zlog.Error(err.Error())
+		}
+		if err := myredis.DelKeyIfExists("my_joined_group_list_" + uuid); err != nil {
+			zlog.Error(err.Error())
+		}
+		if err := myredis.DelKeyIfExists("session_" + uuid + "_" + req.GroupId); err != nil {
+			zlog.Error(err.Error())
+		}
 	}
-	myredis.DelKeyIfExists("group_info_" + req.GroupId)
-	myredis.DelKeyIfExists("group_memberlist_" + req.GroupId)
-
+	rsp := &respond.GetGroupInfoRespond{
+		Uuid:      group.Uuid,
+		Name:      group.Name,
+		Notice:    group.Notice,
+		Avatar:    group.Avatar,
+		MemberCnt: group.MemberCnt,
+		OwnerId:   group.OwnerId,
+		AddMode:   group.AddMode,
+		Status:    group.Status,
+		IsDeleted: group.DeletedAt.Valid,
+	}
+	if err := SetCache("group_info", group.Uuid, rsp); err != nil {
+		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
+	}
+	if err := myredis.DelKeyIfExists("group_memberlist_" + req.GroupId); err != nil {
+		zlog.Error(err.Error())
+	}
 	return "移除群聊成员成功", constants.BizCodeSuccess
 }

@@ -188,6 +188,12 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	// if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
 	// 	zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
 	// }
+	if err := DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := myredis.DelKeysWithPrefix("session_list"); err != nil {
+		zlog.Error(err.Error())
+	}
 	return "删除用户成功", constants.BizCodeSuccess
 }
 
