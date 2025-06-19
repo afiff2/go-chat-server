@@ -245,21 +245,3 @@ func TestDelKeys(t *testing.T) {
 		assert.ErrorIs(t, err, redis.Nil)
 	}
 }
-
-func TestSetStringKeys(t *testing.T) {
-	// 构造 map[string]string
-	data := map[string]string{
-		"multiset:1": "v1",
-		"multiset:2": "v2",
-	}
-	// 用 pipeline 批量写入
-	err := SetStringKeys(data, 5*time.Second)
-	assert.NoError(t, err)
-
-	// 验证写入结果
-	for k, want := range data {
-		got, err := GetKeyNilIsErr(k)
-		assert.NoError(t, err)
-		assert.Equal(t, want, got)
-	}
-}

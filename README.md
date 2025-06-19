@@ -36,21 +36,19 @@ Broker 数量应 ≥ ReplicationFactor（副本因子）
 
 
 Redis表
-user_info_{userId}            //用户信息
-contact_mygroup_list_{userId} //我创建的群组
-my_joined_group_list_{userId} //我加入的群组
-"contact_user_list_" + userId //我的好友列表
+user_info_{userId}            //用户信息 ok
+contact_mygroup_list_{userId} //我创建的群组 ok
+my_joined_group_list_{userId} //我加入的群组 ok
+"contact_user_list_" + userId //我的好友（不含群组）列表 ok
 message_list_{userOneId}_{userTwoId} //消息列表
-group_info_{groupId}        //组的信息
+group_info_{groupId}        //组的信息 ok
 group_messagelist_{groupId} //组中message
-group_memberlist_{groupId}  //组中的人
-"session_" + userId + "_" + userId/groupId //会话
-"session_list_" + userId   //（创建会话人id）会话（人）列表
-("group_session_list_" + userId) //（创建会话人id）会话（组）列表
+group_memberlist_{groupId}  //组中的人 ok
+"session_" + userId + "_" + userId/groupId //会话 ok
+"session_list_" + userId   //（创建会话人id）会话（人）列表 ok
+("group_session_list_" + userId) //（创建会话人id）会话（组）列表 ok
+
+contact_info_  + contactId // 联系人/群信息（类似user_info,gourp_info） (需要没被禁用)！！ok
 
 
-
-DeleteGroups里面有两个全量删除处理一下
-EnterGroupDirectly里面全量删除处理一下
-群成员信息应独立建表 group_members (group_id, user_id)；
-
+群员被删除后会发生什么？

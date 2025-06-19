@@ -65,6 +65,20 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 		return "登陆成功, 写入 Redis 缓存失败", loginRsp, constants.BizCodeSuccess
 	}
 
+	resp := respond.GetContactInfoRespond{
+		ContactId:        user.Uuid,
+		ContactName:      user.Nickname,
+		ContactAvatar:    user.Avatar,
+		ContactBirthday:  user.Birthday,
+		ContactEmail:     user.Email,
+		ContactPhone:     user.Telephone,
+		ContactGender:    user.Gender,
+		ContactSignature: user.Signature,
+	}
+	if err := SetCache("contact_info", loginRsp.Uuid, &resp); err != nil {
+		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", loginRsp.Uuid), zap.Error(err))
+	}
+
 	return "登陆成功", loginRsp, constants.BizCodeSuccess
 }
 
@@ -120,6 +134,20 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 			if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
 				zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 			}
+			resp := respond.GetContactInfoRespond{
+				ContactId:        user.Uuid,
+				ContactName:      user.Nickname,
+				ContactAvatar:    user.Avatar,
+				ContactBirthday:  user.Birthday,
+				ContactEmail:     user.Email,
+				ContactPhone:     user.Telephone,
+				ContactGender:    user.Gender,
+				ContactSignature: user.Signature,
+			}
+			if err := SetCache("contact_info", registerRsp.Uuid, &resp); err != nil {
+				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
+			}
+
 			return "注册成功（恢复历史账号）", registerRsp, constants.BizCodeSuccess
 		}
 		// 正常存在且未删除
@@ -129,7 +157,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 
 	//电话不存在，正常注册
 	var newUser model.UserInfo
-	newUser.Uuid = uuid.NewString()
+	newUser.Uuid = "U" + uuid.NewString()
 	newUser.Telephone = registerReq.Telephone
 	newUser.Password = hashedPassword
 	newUser.Nickname = registerReq.Nickname
@@ -168,21 +196,73 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
+	resp := respond.GetContactInfoRespond{
+		ContactId:        newUser.Uuid,
+		ContactName:      newUser.Nickname,
+		ContactAvatar:    newUser.Avatar,
+		ContactBirthday:  newUser.Birthday,
+		ContactEmail:     newUser.Email,
+		ContactPhone:     newUser.Telephone,
+		ContactGender:    newUser.Gender,
+		ContactSignature: newUser.Signature,
+	}
+	if err := SetCache("contact_info", registerRsp.Uuid, &resp); err != nil {
+		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
+	}
+
 	return "注册成功", registerRsp, constants.BizCodeSuccess
 }
 
 // DeleteUsers 删除用户
 // 用户是否启用禁用需要实时更新contact_user_list状态，所以redis的contact_user_list需要删除
 func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
-	if res := dao.GormDB.
-		Where("uuid IN ?", uuidList).
-		Delete(&model.UserInfo{}); res.Error != nil {
-		zlog.Error("批量删除用户失败", zap.Error(res.Error))
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			zlog.Error("DeleteUsers panic, rollback", zap.Any("recover", r))
+			tx.Rollback()
+		}
+	}()
+
+	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.UserInfo{}); res.Error != nil {
+		zlog.Error("删除用户失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if res := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Session{}); res.Error != nil {
+		zlog.Error("删除会话失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if res := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.UserContact{}); res.Error != nil {
+		zlog.Error("删除联系人失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if res := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.ContactApply{}); res.Error != nil {
+		zlog.Error("删除申请记录失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
+	}
+	if err := DelKeysByUUIDList("contact_info", uuidList); err != nil {
+		zlog.Warn("删除联系人缓存失败", zap.Error(err))
+	}
+	if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+		zlog.Error(err.Error())
 	}
 	//被删掉应该不会再访问这个user，等待redis自然清除
 	// if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
@@ -206,9 +286,9 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 	if err != nil {
 		//redis中没有
 		if errors.Is(err, redis.Nil) {
-			zlog.Debug("Redis 缓存未命中，回库读取", zap.String("key", cacheKey))
+			zlog.Debug("user_info 缓存未命中，回库读取", zap.String("key", cacheKey))
 		} else {
-			zlog.Warn("Redis 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
+			zlog.Warn("user_info 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
 		}
 		var user model.UserInfo
 		if res := dao.GormDB.First(&user, "uuid = ?", uuid); res.Error != nil {
@@ -236,6 +316,27 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 		if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
 			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
+
+		if user.Status == user_status_enum.NORMAL {
+			resp := respond.GetContactInfoRespond{
+				ContactId:        user.Uuid,
+				ContactName:      user.Nickname,
+				ContactAvatar:    user.Avatar,
+				ContactBirthday:  user.Birthday,
+				ContactEmail:     user.Email,
+				ContactPhone:     user.Telephone,
+				ContactGender:    user.Gender,
+				ContactSignature: user.Signature,
+			}
+			if err := SetCache("contact_info", uuid, &resp); err != nil {
+				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", uuid), zap.Error(err))
+			}
+		} else {
+			if err := myredis.DelKeyIfExists("contact_info_" + uuid); err != nil {
+				zlog.Error(err.Error())
+			}
+		}
+
 		return "获取用户信息成功", &rsp, constants.BizCodeSuccess
 	}
 	//redis中有
@@ -297,6 +398,31 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
+	// 更新用户信息成功后，检查并同步更新 contact_info 缓存
+	if user.Status == user_status_enum.NORMAL {
+		resp := respond.GetContactInfoRespond{
+			ContactId:        user.Uuid,
+			ContactName:      user.Nickname,
+			ContactAvatar:    user.Avatar,
+			ContactBirthday:  user.Birthday,
+			ContactEmail:     user.Email,
+			ContactPhone:     user.Telephone,
+			ContactGender:    user.Gender,
+			ContactSignature: user.Signature,
+		}
+		if err := SetCache("contact_info", updateReq.Uuid, &resp); err != nil {
+			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", updateReq.Uuid), zap.Error(err))
+		}
+	} else {
+		if err := myredis.DelKeyIfExists("contact_info_" + updateReq.Uuid); err != nil {
+			zlog.Error(err.Error())
+		}
+	}
+
+	if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+		zlog.Error(err.Error())
+	}
+
 	return "修改用户信息成功", constants.BizCodeSuccess
 }
 
@@ -340,10 +466,14 @@ func (u *userInfoService) AbleUsers(uuidList []string) (string, int) {
 	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
-	// // 删除所有 "contact_user_list" 开头的 key
-	// if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
-	//     zlog.Error(err.Error())
+	// 被禁用的不在缓存里，启用不用删除
+	// if err := DelKeysByUUIDList("contact_info", uuidList); err != nil {
+	// 	zlog.Warn("删除联系人缓存失败", zap.Error(err))
 	// }
+	// 删除所有 "contact_user_list" 开头的 key
+	if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+		zlog.Error(err.Error())
+	}
 
 	return "启用用户成功", constants.BizCodeSuccess
 }
@@ -370,10 +500,13 @@ func (u *userInfoService) DisableUsers(uuidList []string) (string, int) {
 	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
-	// // 删除所有 "contact_user_list" 前缀的 Redis key
-	// if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
-	// 	zlog.Error(err.Error())
-	// }
+	if err := DelKeysByUUIDList("contact_info", uuidList); err != nil {
+		zlog.Warn("删除联系人缓存失败", zap.Error(err))
+	}
+	// 删除所有 "contact_user_list" 前缀的 Redis key
+	if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
+		zlog.Error(err.Error())
+	}
 
 	return "禁用用户成功", constants.BizCodeSuccess
 }

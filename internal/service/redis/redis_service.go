@@ -195,21 +195,3 @@ func DelKeys(keys []string) error {
 	}
 	return nil
 }
-
-// SetStringKeys 批量设置 Redis key-value（已序列化字符串），使用 pipeline
-func SetStringKeys(data map[string]string, expiration time.Duration) error {
-	if len(data) == 0 {
-		return nil
-	}
-
-	pipe := redisClient.Pipeline()
-	for key, val := range data {
-		pipe.Set(ctx, key, val, expiration)
-	}
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		zlog.Warn("Redis 批量写入失败", zap.Error(err))
-		return err
-	}
-	return nil
-}
