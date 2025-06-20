@@ -18,6 +18,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -49,15 +50,20 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	members := []string{groupReq.OwnerId}
-	var err error
-	group.Members, err = json.Marshal(members)
-	if err != nil {
-		zlog.Error(err.Error())
+
+	if res := tx.Create(&group); res.Error != nil {
+		zlog.Error(res.Error.Error())
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	if res := tx.Create(&group); res.Error != nil {
+
+	//添加自己作为群员
+	gm := model.GroupMember{
+		GroupUuid: group.Uuid,
+		UserUuid:  groupReq.OwnerId,
+		JoinedAt:  time.Now(),
+	}
+	if res := tx.Create(&gm); res.Error != nil {
 		zlog.Error(res.Error.Error())
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
@@ -109,7 +115,6 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
@@ -215,7 +220,6 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 					ContactAvatar:    group.Avatar,
 					ContactNotice:    group.Notice,
 					ContactAddMode:   group.AddMode,
-					ContactMembers:   group.Members,
 					ContactMemberCnt: group.MemberCnt,
 					ContactOwnerId:   group.OwnerId,
 				}
@@ -282,7 +286,6 @@ func (g *groupInfoService) GetGroupInfo(groupId string) (string, *respond.GetGro
 				ContactAvatar:    group.Avatar,
 				ContactNotice:    group.Notice,
 				ContactAddMode:   group.AddMode,
-				ContactMembers:   group.Members,
 				ContactMemberCnt: group.MemberCnt,
 				ContactOwnerId:   group.OwnerId,
 			}
@@ -350,31 +353,29 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 		tx.Rollback()
 		return "群主不允许主动退出群聊", constants.BizCodeInvalid
 	}
-	var members []string
-	if err := json.Unmarshal(group.Members, &members); err != nil {
-		zlog.Error(err.Error())
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-	found := false
-	for i, member := range members {
-		if member == userId {
-			found = true
-			members = append(members[:i], members[i+1:]...)
-			break
+
+	var gm model.GroupMember
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&gm, "group_uuid = ? AND user_uuid = ?", groupId, userId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 处理找不到的情况
+			tx.Rollback()
+			return "成员信息异常，用户不在群中", constants.BizCodeInvalid
+		} else {
+			// 处理其他数据库错误
+			zlog.Error("数据库错误", zap.Error(err))
+			tx.Rollback()
+			return constants.SYSTEM_ERROR, constants.BizCodeError
 		}
 	}
-	if !found {
-		tx.Rollback()
-		return "成员信息异常，用户不在群中", constants.BizCodeInvalid
-	}
-	if data, err := json.Marshal(members); err != nil {
-		zlog.Error(err.Error())
+
+	if err := tx.Delete(&model.GroupMember{},
+		"group_uuid = ? AND user_uuid = ?", groupId, userId).Error; err != nil {
+		zlog.Error("删除群员信息失败", zap.Error(err))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
-	} else {
-		group.Members = data
 	}
+
 	if group.MemberCnt > 0 {
 		group.MemberCnt-- //防御性编程
 	}
@@ -383,6 +384,7 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
+
 	// 删除会话
 	if res := tx.Where("send_id = ? AND receive_id = ?", userId, groupId).
 		Delete(&model.Session{}); res.Error != nil {
@@ -447,7 +449,6 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
@@ -483,7 +484,7 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 	}()
 	// 查询
 	var group model.GroupInfo
-	if res := tx.First(&group, "uuid = ?", groupId); res.Error != nil {
+	if res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, "uuid = ?", groupId); res.Error != nil {
 		zlog.Error("群聊不存在", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
@@ -496,6 +497,16 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 	// 删除 GroupInfo（软删）
 	if res := tx.Delete(&group); res.Error != nil {
 		zlog.Error("解散群聊失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 物理删除 group_member
+	if res := tx.
+		Where("group_uuid = ?", groupId).
+		Unscoped(). // 直接硬删（因为 group_member 没有 DeletedAt）
+		Delete(&model.GroupMember{}); res.Error != nil {
+		zlog.Error("删除群成员失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
@@ -563,7 +574,7 @@ func (g *groupInfoService) DeleteGroupsByAdmin(uuidList []string) (string, int) 
 
 	// 检查是否存在
 	var groups []model.GroupInfo
-	if res := tx.Where("uuid IN ?", uuidList).Find(&groups); res.Error != nil {
+	if res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid IN ?", uuidList).Find(&groups); res.Error != nil {
 		zlog.Error("获取群聊失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
@@ -582,6 +593,16 @@ func (g *groupInfoService) DeleteGroupsByAdmin(uuidList []string) (string, int) 
 	// 删除群信息（GORM软删除）
 	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.GroupInfo{}); res.Error != nil {
 		zlog.Error("删除群信息失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 物理删除 group_member
+	if res := tx.
+		Where("group_uuid IN ?", uuidList).
+		Unscoped(). // 直接硬删（因为 group_member 没有 DeletedAt）
+		Delete(&model.GroupMember{}); res.Error != nil {
+		zlog.Error("删除群成员失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
@@ -675,7 +696,6 @@ func (g *groupInfoService) CheckGroupAddMode(groupId string) (string, int8, int)
 				ContactAvatar:    group.Avatar,
 				ContactNotice:    group.Notice,
 				ContactAddMode:   group.AddMode,
-				ContactMembers:   group.Members,
 				ContactMemberCnt: group.MemberCnt,
 				ContactOwnerId:   group.OwnerId,
 			}
@@ -713,29 +733,34 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	// 解析成员列表
-	var members []string
-	if err := json.Unmarshal(group.Members, &members); err != nil {
-		zlog.Error("解析群成员失败", zap.Error(err))
+
+	// 判断用户是否已在群中（查 group_member）
+	var exists int64
+	if err := tx.Model(&model.GroupMember{}).
+		Where("group_uuid = ? AND user_uuid = ?", groupId, userId).
+		Count(&exists).Error; err != nil {
+		zlog.Error("查询群成员失败", zap.Error(err))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	for _, m := range members {
-		if m == userId {
-			zlog.Warn("用户已在群里，直接退出", zap.String("userId", userId), zap.String("groupId", groupId))
-			tx.Rollback()
-			return "用户已在群里", constants.BizCodeInvalid
-		}
+	if exists > 0 {
+		zlog.Warn("用户已在群里", zap.String("userId", userId), zap.String("groupId", groupId))
+		tx.Rollback()
+		return "用户已在群里", constants.BizCodeInvalid
 	}
-	members = append(members, userId)
-	if data, err := json.Marshal(members); err != nil {
-		zlog.Error(err.Error())
+	// 插入新成员
+	member := model.GroupMember{
+		GroupUuid: groupId,
+		UserUuid:  userId,
+		JoinedAt:  time.Now(),
+	}
+	if err := tx.Create(&member).Error; err != nil {
+		zlog.Error("新增群成员失败", zap.Error(err))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
-	} else {
-		group.Members = data
 	}
-	group.MemberCnt += 1
+
+	group.MemberCnt++
 	// 保存群信息
 	if res := tx.Save(&group); res.Error != nil {
 		zlog.Error("更新群信息失败", zap.Error(res.Error))
@@ -782,7 +807,6 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
@@ -941,7 +965,6 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
@@ -981,17 +1004,24 @@ func (g *groupInfoService) GetGroupMemberList(groupId string) (string, []respond
 		}
 		var group model.GroupInfo
 		if res := dao.GormDB.First(&group, "uuid = ?", groupId); res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				return "群聊不存在", nil, constants.BizCodeInvalid
+			}
 			zlog.Error("查询群信息失败", zap.Error(res.Error))
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 		}
-		var memberIds []string
-		if err := json.Unmarshal(group.Members, &memberIds); err != nil {
-			zlog.Error("解析成员列表失败", zap.Error(err))
+
+		var members []model.GroupMember
+		if res := dao.GormDB.
+			Where("group_uuid = ?", groupId).
+			Find(&members); res.Error != nil {
+			zlog.Error("查询群成员失败", zap.Error(res.Error))
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 		}
 
-		if len(memberIds) == 0 {
-			return "群聊暂无成员", nil, constants.BizCodeSuccess
+		memberIds := make([]string, len(members))
+		for i, m := range members {
+			memberIds[i] = m.UserUuid
 		}
 
 		// 一次性查出所有用户信息
@@ -1044,16 +1074,19 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	// 反序列化成员列表
+	// 3. 拉取现有成员 → map
 	var members []string
-	if err := json.Unmarshal(group.Members, &members); err != nil {
-		zlog.Error("群成员字段解析失败", zap.Error(err))
+	if err := tx.Model(&model.GroupMember{}).
+		Where("group_uuid = ?", req.GroupId).
+		Pluck("user_uuid", &members).Error; err != nil {
+
+		zlog.Error("查询群成员失败", zap.Error(err))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	// 处理移除逻辑
-	memberSet := make(map[string]struct{})
+	memberSet := make(map[string]struct{}, len(members))
 	for _, m := range members {
 		memberSet[m] = struct{}{}
 	}
@@ -1081,6 +1114,15 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 		return "无可移除的成员", constants.BizCodeInvalid
 	}
 
+	// 批量删除 group_member 记录
+	if err := tx.Where("group_uuid = ? AND user_uuid IN ?", req.GroupId, toDelete).
+		Delete(&model.GroupMember{}).Error; err != nil {
+
+		zlog.Error("删除 group_member 失败", zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
 	// 批量删除 Session
 	if res := tx.Where("send_id IN ? AND receive_id = ?", toDelete, req.GroupId).
 		Delete(&model.Session{}); res.Error != nil {
@@ -1104,19 +1146,8 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	// 更新成员字段
-	var updatedMembers []string
-	for m := range memberSet {
-		updatedMembers = append(updatedMembers, m)
-	}
-	var err error
-	group.Members, err = json.Marshal(updatedMembers)
-	if err != nil {
-		zlog.Error(err.Error())
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
 
+	// 更新群组信息
 	if res := tx.Save(&group); res.Error != nil {
 		zlog.Error("保存群信息失败", zap.Error(res.Error))
 		tx.Rollback()
@@ -1164,7 +1195,6 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}

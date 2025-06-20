@@ -31,7 +31,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	err = GormDB.AutoMigrate(&model.UserInfo{}, &model.GroupInfo{}, &model.UserContact{}, &model.Session{}, &model.ContactApply{}, &model.Message{})
+	err = GormDB.AutoMigrate(&model.UserInfo{}, &model.GroupInfo{}, &model.GroupMember{}, &model.UserContact{}, &model.Session{}, &model.ContactApply{}, &model.Message{})
 	if err != nil {
 		zlog.Error("GormDB自动迁移失败", zap.Error(err))
 		os.Exit(1)

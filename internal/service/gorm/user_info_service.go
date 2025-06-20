@@ -216,6 +216,52 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 // DeleteUsers 删除用户
 // 用户是否启用禁用需要实时更新contact_user_list状态，所以redis的contact_user_list需要删除
 func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
+	if len(uuidList) == 0 {
+		return "无可处理用户", constants.BizCodeInvalid
+	}
+	//用户退群，解散群聊
+	for _, uid := range uuidList {
+		// 用户作为普通成员的群 —— 直接调用 LeaveGroup
+		var joinedIds []string
+		err := dao.GormDB.
+			Model(&model.GroupMember{}).
+			Where(&model.GroupMember{UserUuid: uid}).
+			Where("group_uuid NOT IN (?)",
+				dao.GormDB.Model(&model.GroupInfo{}).
+					Select("uuid").
+					Where("owner_id = ?", uid),
+			).Pluck("group_uuid", &joinedIds).Error
+		if err != nil {
+			zlog.Error("删除用户前查加入的群失败")
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
+
+		for _, gid := range joinedIds {
+			_, code := GroupInfoService.LeaveGroup(uid, gid)
+			if code != constants.BizCodeSuccess {
+				return constants.SYSTEM_ERROR, constants.BizCodeError
+			}
+		}
+
+		// 用户作为群主的群 —— 调用 DismissGroup（或自行转让）
+		// 用户作为群主的群
+		var ownIds []string
+		err = dao.GormDB.Model(&model.GroupInfo{}).
+			Where("owner_id = ?", uid).
+			Pluck("uuid", &ownIds).Error
+		if err != nil {
+			zlog.Error("删除用户前查询创建的群失败")
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
+		for _, gid := range ownIds {
+			// 群主删除账户 -> 默认解散群
+			_, code := GroupInfoService.DismissGroup(uid, gid)
+			if code != constants.BizCodeSuccess {
+				return constants.SYSTEM_ERROR, constants.BizCodeError
+			}
+		}
+	}
+
 	tx := dao.GormDB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -254,7 +300,7 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-
+	//群聊相关的缓存在退群/解散群时已经修改
 	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}

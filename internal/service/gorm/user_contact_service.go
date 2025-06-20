@@ -152,7 +152,6 @@ func (u *userContactService) GetContactInfo(contactId string) (string, respond.G
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
@@ -495,7 +494,7 @@ func (u *userContactService) PassContactApply(ownerId string, contactId string) 
 	tx := dao.GormDB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
-			zlog.Error("SetGroupsStatus panic", zap.Any("recover", r))
+			zlog.Error("PassContactApply panic", zap.Any("recover", r))
 			tx.Rollback()
 		}
 	}()
@@ -615,36 +614,34 @@ func (u *userContactService) PassContactApply(ownerId string, contactId string) 
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	// 处理群成员 JSON 字段
-	var members []string
-	if err := json.Unmarshal(group.Members, &members); err != nil {
-		zlog.Error("解析群成员失败", zap.Error(err))
+	// 判断用户是否已在群中（查 group_member）
+	var exists int64
+	if err := tx.Model(&model.GroupMember{}).
+		Where("group_uuid = ? AND user_uuid = ?", ownerId, contactId).
+		Count(&exists).Error; err != nil {
+		zlog.Error("查询群成员失败", zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if exists > 0 {
+		zlog.Warn("用户已在群里", zap.String("userId", contactId), zap.String("groupId", ownerId))
+		tx.Rollback()
+		return "用户已在群里", constants.BizCodeInvalid
+	}
+
+	// 插入新成员
+	member := model.GroupMember{
+		GroupUuid: ownerId,
+		UserUuid:  contactId,
+		JoinedAt:  time.Now(),
+	}
+	if err := tx.Create(&member).Error; err != nil {
+		zlog.Error("新增群成员失败", zap.Error(err))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	// 避免重复添加
-	found := false
-	for _, m := range members {
-		if m == contactId {
-			found = true
-			break
-		}
-	}
-	if found {
-		tx.Rollback()
-		return "请勿重复加群", constants.BizCodeInvalid
-	}
-
-	members = append(members, contactId)
-	group.MemberCnt = len(members)
-	var err2 error
-	group.Members, err2 = json.Marshal(members)
-	if err2 != nil {
-		zlog.Error(err2.Error())
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
+	group.MemberCnt++
 	if err := tx.Save(&group).Error; err != nil {
 		zlog.Error("更新群成员失败", zap.Error(err))
 		tx.Rollback()
@@ -677,7 +674,6 @@ func (u *userContactService) PassContactApply(ownerId string, contactId string) 
 			ContactAvatar:    group.Avatar,
 			ContactNotice:    group.Notice,
 			ContactAddMode:   group.AddMode,
-			ContactMembers:   group.Members,
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
