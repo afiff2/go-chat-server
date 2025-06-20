@@ -103,7 +103,7 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info", group.Uuid, &groupInfoRsp); err != nil {
+	if err := SetCache("group_info_"+group.Uuid, &groupInfoRsp); err != nil {
 		zlog.Warn("预写 group_info 缓存失败", zap.String("groupId", group.Uuid), zap.Error(err))
 	}
 
@@ -118,7 +118,7 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info", group.Uuid, &resp); err != nil {
+		if err := SetCache("contact_info_"+group.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", group.Uuid), zap.Error(err))
 		}
 	} else {
@@ -139,7 +139,7 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 				GroupName: group.Name,
 				Avatar:    group.Avatar,
 			})
-			if err := SetCache("my_joined_group_list", groupReq.OwnerId, &joined); err != nil {
+			if err := SetCache("my_joined_group_list_"+groupReq.OwnerId, &joined); err != nil {
 				zlog.Warn("更新 Redis 缓存失败", zap.Error(err))
 			}
 		}
@@ -159,7 +159,7 @@ func (g *groupInfoService) CreateGroup(groupReq request.CreateGroupRequest) (str
 				GroupName: group.Name,
 				Avatar:    group.Avatar,
 			})
-			if err := SetCache("contact_mygroup_list", groupReq.OwnerId, &owned); err != nil {
+			if err := SetCache("contact_mygroup_list_"+groupReq.OwnerId, &owned); err != nil {
 				zlog.Warn("更新 Redis 缓存失败", zap.Error(err))
 			}
 		}
@@ -208,7 +208,7 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 				Status:    group.Status,
 				IsDeleted: group.DeletedAt.Valid,
 			}
-			if err := SetCache("group_info", group.Uuid, &groupInfoRsp); err != nil {
+			if err := SetCache("group_info_"+group.Uuid, &groupInfoRsp); err != nil {
 				zlog.Warn("预写 group_info 缓存失败", zap.String("groupId", group.Uuid), zap.Error(err))
 			}
 
@@ -223,7 +223,7 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 					ContactMemberCnt: group.MemberCnt,
 					ContactOwnerId:   group.OwnerId,
 				}
-				if err := SetCache("contact_info", group.Uuid, &resp); err != nil {
+				if err := SetCache("contact_info_"+group.Uuid, &resp); err != nil {
 					zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", group.Uuid), zap.Error(err))
 				}
 			} else {
@@ -234,7 +234,7 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 		}
 
 		// 写入 contact_mygroup_list_{ownerId} 缓存
-		if err := SetCache("contact_mygroup_list", ownerId, &groupListRsp); err != nil {
+		if err := SetCache("contact_mygroup_list_"+ownerId, &groupListRsp); err != nil {
 			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
 		return "获取成功", groupListRsp, constants.BizCodeSuccess
@@ -275,7 +275,7 @@ func (g *groupInfoService) GetGroupInfo(groupId string) (string, *respond.GetGro
 			Status:    group.Status,
 			IsDeleted: group.DeletedAt.Valid,
 		}
-		if err := SetCache("group_info", groupId, rsp); err != nil {
+		if err := SetCache("group_info_"+groupId, rsp); err != nil {
 			zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 		}
 		// 同步更新 contact_info 缓存
@@ -289,7 +289,7 @@ func (g *groupInfoService) GetGroupInfo(groupId string) (string, *respond.GetGro
 				ContactMemberCnt: group.MemberCnt,
 				ContactOwnerId:   group.OwnerId,
 			}
-			if err := SetCache("contact_info", groupId, &resp); err != nil {
+			if err := SetCache("contact_info_"+groupId, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", groupId), zap.Error(err))
 			}
 		} else {
@@ -438,7 +438,7 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 	if err := myredis.DelKeyIfExists("group_memberlist_" + groupId); err != nil {
 		zlog.Error(err.Error())
 	}
-	if err := SetCache("group_info", groupId, rsp); err != nil {
+	if err := SetCache("group_info_"+groupId, rsp); err != nil {
 		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 	}
 	// 同步更新 contact_info 缓存
@@ -452,7 +452,7 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info", groupId, &resp); err != nil {
+		if err := SetCache("contact_info_"+groupId, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", groupId), zap.Error(err))
 		}
 	} else {
@@ -685,7 +685,7 @@ func (g *groupInfoService) CheckGroupAddMode(groupId string) (string, int8, int)
 			Status:    group.Status,
 			IsDeleted: group.DeletedAt.Valid,
 		}
-		if err := SetCache("group_info", groupId, rsp); err != nil {
+		if err := SetCache("group_info_"+groupId, rsp); err != nil {
 			zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 		}
 		// 同步更新 contact_info 缓存
@@ -699,7 +699,7 @@ func (g *groupInfoService) CheckGroupAddMode(groupId string) (string, int8, int)
 				ContactMemberCnt: group.MemberCnt,
 				ContactOwnerId:   group.OwnerId,
 			}
-			if err := SetCache("contact_info", groupId, &resp); err != nil {
+			if err := SetCache("contact_info_"+groupId, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", groupId), zap.Error(err))
 			}
 		} else {
@@ -796,7 +796,7 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info", groupId, rsp); err != nil {
+	if err := SetCache("group_info_"+groupId, rsp); err != nil {
 		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 	}
 	// 同步更新 contact_info 缓存
@@ -810,7 +810,7 @@ func (g *groupInfoService) EnterGroupDirectly(groupId, userId string) (string, i
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info", groupId, &resp); err != nil {
+		if err := SetCache("contact_info_"+groupId, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", groupId), zap.Error(err))
 		}
 	} else {
@@ -953,7 +953,7 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info", group.Uuid, &groupInfoRsp); err != nil {
+	if err := SetCache("group_info_"+group.Uuid, &groupInfoRsp); err != nil {
 		zlog.Warn("预写 group_info 缓存失败", zap.String("groupId", group.Uuid), zap.Error(err))
 	}
 
@@ -968,7 +968,7 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info", group.Uuid, &resp); err != nil {
+		if err := SetCache("contact_info_"+group.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", group.Uuid), zap.Error(err))
 		}
 	} else {
@@ -1039,7 +1039,7 @@ func (g *groupInfoService) GetGroupMemberList(groupId string) (string, []respond
 				Avatar:   user.Avatar,
 			})
 		}
-		if err := SetCache("group_memberlist", groupId, &rspList); err != nil {
+		if err := SetCache("group_memberlist_"+groupId, &rspList); err != nil {
 			zlog.Warn("写入成员列表缓存失败", zap.Error(err))
 		}
 
@@ -1183,7 +1183,7 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info", group.Uuid, rsp); err != nil {
+	if err := SetCache("group_info_"+group.Uuid, rsp); err != nil {
 		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 	}
 
@@ -1198,7 +1198,7 @@ func (g *groupInfoService) RemoveGroupMembers(req request.RemoveGroupMembersRequ
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info", group.Uuid, &resp); err != nil {
+		if err := SetCache("contact_info_"+group.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", group.Uuid), zap.Error(err))
 		}
 	} else {

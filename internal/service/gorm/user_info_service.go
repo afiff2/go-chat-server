@@ -61,7 +61,7 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 	// year, month, day := user.CreatedAt.Date()
 	// loginRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info", loginRsp.Uuid, loginRsp); err != nil {
+	if err := SetCache("user_info_"+loginRsp.Uuid, loginRsp); err != nil {
 		return "登陆成功, 写入 Redis 缓存失败", loginRsp, constants.BizCodeSuccess
 	}
 
@@ -75,7 +75,7 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 		ContactGender:    user.Gender,
 		ContactSignature: user.Signature,
 	}
-	if err := SetCache("contact_info", loginRsp.Uuid, &resp); err != nil {
+	if err := SetCache("contact_info_"+loginRsp.Uuid, &resp); err != nil {
 		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", loginRsp.Uuid), zap.Error(err))
 	}
 
@@ -131,7 +131,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				IsAdmin:   user.IsAdmin,
 				Status:    user.Status,
 			}
-			if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
+			if err := SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
 				zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 			}
 			resp := respond.GetContactInfoRespond{
@@ -144,7 +144,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				ContactGender:    user.Gender,
 				ContactSignature: user.Signature,
 			}
-			if err := SetCache("contact_info", registerRsp.Uuid, &resp); err != nil {
+			if err := SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
 			}
 
@@ -192,7 +192,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	// registerRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info", registerRsp.Uuid, registerRsp); err != nil {
+	if err := SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
@@ -206,7 +206,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		ContactGender:    newUser.Gender,
 		ContactSignature: newUser.Signature,
 	}
-	if err := SetCache("contact_info", registerRsp.Uuid, &resp); err != nil {
+	if err := SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
 		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
 	}
 
@@ -357,7 +357,7 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 			Status:    user.Status,
 		}
 		// 将用户信息写入 Redis 缓存
-		if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
+		if err := SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
 			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
 
@@ -372,7 +372,7 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 				ContactGender:    user.Gender,
 				ContactSignature: user.Signature,
 			}
-			if err := SetCache("contact_info", uuid, &resp); err != nil {
+			if err := SetCache("contact_info_"+uuid, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", uuid), zap.Error(err))
 			}
 		} else {
@@ -438,7 +438,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 		Status:    user.Status,
 	}
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info", rsp.Uuid, &rsp); err != nil {
+	if err := SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
@@ -454,7 +454,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 			ContactGender:    user.Gender,
 			ContactSignature: user.Signature,
 		}
-		if err := SetCache("contact_info", updateReq.Uuid, &resp); err != nil {
+		if err := SetCache("contact_info_"+updateReq.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", updateReq.Uuid), zap.Error(err))
 		}
 	} else {

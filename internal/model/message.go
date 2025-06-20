@@ -23,7 +23,7 @@ type Message struct {
 	SendAt     sql.NullTime `gorm:"column:send_at;comment:发送时间"`
 	AVdata     string       `gorm:"column:av_data;comment:通话传递数据"`
 
-	Session    UserInfo `gorm:"foreignKey:SessionId;references:Uuid;constraint:OnDelete:CASCADE"`
+	Session    Session  `gorm:"foreignKey:SessionId;references:Uuid;constraint:OnDelete:CASCADE"`
 	SenderUser UserInfo `gorm:"foreignKey:SendId;references:Uuid;constraint:OnDelete:CASCADE"`
 }
 

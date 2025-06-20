@@ -2,7 +2,6 @@ package gorm
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
@@ -12,34 +11,14 @@ import (
 )
 
 // data必须是指针
-func SetCache[T any](prefix string, key string, data *T) error {
-	cacheKey := fmt.Sprintf("%s_%s", prefix, key)
-
+func SetCache[T any](key string, data *T) error {
 	rspBytes, err := json.Marshal(*data)
 	if err != nil {
 		zlog.Error("数据序列化失败", zap.Error(err))
 		return err
 	}
 
-	err = myredis.SetKeyEx(cacheKey, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
-	if err != nil {
-		zlog.Error("写入 Redis 缓存失败", zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-// SetCacheWithTwoKeys 设置缓存，使用 prefix + key1 + key2 作为缓存键
-func SetCacheWithTwoKeys[T any](prefix string, key1 string, key2 string, data *T) error {
-	cacheKey := fmt.Sprintf("%s_%s_%s", prefix, key1, key2)
-
-	rspBytes, err := json.Marshal(*data)
-	if err != nil {
-		zlog.Error("数据序列化失败", zap.Error(err))
-		return err
-	}
-
-	err = myredis.SetKeyEx(cacheKey, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
+	err = myredis.SetKeyEx(key, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
 	if err != nil {
 		zlog.Error("写入 Redis 缓存失败", zap.Error(err))
 		return err
