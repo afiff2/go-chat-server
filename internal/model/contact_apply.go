@@ -7,8 +7,7 @@ import (
 )
 
 type ContactApply struct {
-	Id          int64          `gorm:"column:id;primaryKey;comment:自增id"`
-	Uuid        string         `gorm:"column:uuid;uniqueIndex;type:char(37);comment:申请id"`
+	Uuid        string         `gorm:"column:uuid;primaryKey;type:char(37);comment:申请id"`
 	UserId      string         `gorm:"column:user_id;index;type:char(37);not null;comment:申请人id"`
 	ContactId   string         `gorm:"column:contact_id;index;type:char(37);not null;comment:被申请id"`
 	ContactType int8           `gorm:"column:contact_type;not null;comment:被申请类型，0.用户，1.群聊"`
@@ -16,6 +15,8 @@ type ContactApply struct {
 	Message     string         `gorm:"column:message;type:varchar(100);comment:申请信息"`
 	LastApplyAt time.Time      `gorm:"column:last_apply_at;type:datetime;not null;comment:最后申请时间"`
 	DeletedAt   gorm.DeletedAt `gorm:"column:deleted_at;index;type:datetime;comment:删除时间"`
+
+	User UserInfo `gorm:"foreignKey:UserId;references:Uuid;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
 func (ContactApply) TableName() string {

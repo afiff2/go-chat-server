@@ -7,8 +7,7 @@ import (
 )
 
 type GroupInfo struct {
-	Id        int64          `gorm:"column:id;primaryKey;comment:自增id"`
-	Uuid      string         `gorm:"column:uuid;uniqueIndex;type:char(37);not null;comment:群组唯一id"`
+	Uuid      string         `gorm:"column:uuid;primaryKey;type:char(37);not null;comment:群组唯一id"`
 	Name      string         `gorm:"column:name;type:varchar(20);not null;comment:群名称"`
 	Notice    string         `gorm:"column:notice;type:varchar(500);comment:群公告"`
 	MemberCnt int            `gorm:"column:member_cnt;default:1;comment:群人数"` // 默认群主1人

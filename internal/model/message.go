@@ -6,8 +6,7 @@ import (
 )
 
 type Message struct {
-	Id         int64        `gorm:"column:id;primaryKey;comment:自增id"`
-	Uuid       string       `gorm:"column:uuid;uniqueIndex;type:char(37);not null;comment:消息uuid"`
+	Uuid       string       `gorm:"column:uuid;primaryKey;type:char(37);not null;comment:消息uuid"`
 	SessionId  string       `gorm:"column:session_id;index;type:char(37);not null;comment:会话uuid"`
 	Type       int8         `gorm:"column:type;not null;comment:消息类型，0.文本，1.语音，2.文件，3.通话"` // 通话不用存消息内容或者url
 	Content    string       `gorm:"column:content;type:TEXT;comment:消息内容"`
@@ -23,6 +22,9 @@ type Message struct {
 	CreatedAt  time.Time    `gorm:"column:created_at;not null;comment:创建时间"`
 	SendAt     sql.NullTime `gorm:"column:send_at;comment:发送时间"`
 	AVdata     string       `gorm:"column:av_data;comment:通话传递数据"`
+
+	Session    UserInfo `gorm:"foreignKey:SessionId;references:Uuid;constraint:OnDelete:CASCADE"`
+	SenderUser UserInfo `gorm:"foreignKey:SendId;references:Uuid;constraint:OnDelete:CASCADE"`
 }
 
 func (Message) TableName() string {

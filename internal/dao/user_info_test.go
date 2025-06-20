@@ -37,7 +37,6 @@ func TestCreateUser(t *testing.T) {
 	zlog.Info("正在创建用户", zap.Any("user", user))
 	result := db.Create(user)
 	assert.NoError(t, result.Error)
-	assert.NotZero(t, user.Id)
 
 	zlog.Info("正在查询用户", zap.String("uuid", user.Uuid))
 	var foundUser model.UserInfo
