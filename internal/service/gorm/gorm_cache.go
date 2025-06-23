@@ -61,3 +61,17 @@ func DelKeysByPatternAndUUIDList(prefixPattern string, uuids []string) error {
 
 	return nil
 }
+
+func DelKeysByPrefixAndUUIDListWithSuffix(prefix string, uuids []string, suffixPattern string) error {
+	if len(uuids) == 0 {
+		return nil
+	}
+
+	for _, id := range uuids {
+		pattern := prefix + "_" + id + "_" + suffixPattern
+		if err := myredis.DelKeysWithPattern(pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}

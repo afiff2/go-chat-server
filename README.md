@@ -54,6 +54,4 @@ group_messagelist_{groupId} //组中message
 contact_info_  + contactId // 联系人/群信息（类似user_info,gourp_info） (需要没被禁用)！！ok
 
 
-SetCache接口调整
 多个sql操作加入事务（先查状态，再插入 / 删除。并发情况下很容易出现 读到旧快照、重复插入或删错数据。）
-接口复用

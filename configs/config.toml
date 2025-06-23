@@ -28,3 +28,7 @@ commitTimeout = 5 # 单位秒
 env = "dev"
 path = "/root/Project/go-chat-server/logs/test.log"
 level = "debug"
+
+[staticSrcConfig]
+staticAvatarPath = "./static/avatars"
+staticFilePath = "./static/files"

@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `toml:"serverConfig"`
-	Log    LogConfig    `toml:"log"`
-	Mysql  MysqlConfig  `toml:"mysqlConfig"`
-	Redis  RedisConfig  `toml:"redisConfig"`
-	Kafka  KafkaConfig  `toml:"kafkaConfig"`
+	Server    ServerConfig    `toml:"serverConfig"`
+	Log       LogConfig       `toml:"log"`
+	Mysql     MysqlConfig     `toml:"mysqlConfig"`
+	Redis     RedisConfig     `toml:"redisConfig"`
+	Kafka     KafkaConfig     `toml:"kafkaConfig"`
+	StaticSrc StaticSrcConfig `toml:"staticSrcConfig"`
 }
 
 type ServerConfig struct {
@@ -49,6 +50,11 @@ type KafkaConfig struct {
 	Replication   int           `toml:"replication"`
 	WriteTimeout  time.Duration `toml:"writeTimeout"`
 	CommitTimeout time.Duration `toml:"commitTimeout"`
+}
+
+type StaticSrcConfig struct {
+	StaticAvatarPath string `toml:"staticAvatarPath"`
+	StaticFilePath   string `toml:"staticFilePath"`
 }
 
 var config *Config

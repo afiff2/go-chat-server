@@ -90,16 +90,30 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		zlog.Error("密码加密失败", zap.Error(err))
 		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 	}
+
+	tx := dao.GormDB.Begin()
+	if tx.Error != nil {
+		zlog.Error("开启事务失败", zap.Error(tx.Error))
+		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			zlog.Error("Register panic, rollback", zap.Any("recover", r))
+			tx.Rollback()
+		}
+	}()
+
 	// 不用校验手机号，前端校验
 	// 判断电话是否已经被注册过了
 	var user model.UserInfo
-	if res := dao.GormDB.Unscoped().
+	if res := tx.Unscoped().
 		Where("telephone = ?", registerReq.Telephone).
 		First(&user); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			zlog.Debug("该电话不存在，可以注册")
 		} else {
 			zlog.Error(res.Error.Error())
+			tx.Rollback()
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 		}
 	} else { //要么软删状态，要么已存在
@@ -112,8 +126,16 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 			//user.Avatar = "https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"
 			user.Status = user_status_enum.NORMAL
 
-			if err := dao.GormDB.Save(&user).Error; err != nil {
+			if err := tx.Save(&user).Error; err != nil {
 				zlog.Error("复活旧记录失败", zap.Error(err))
+				tx.Rollback()
+				return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+			}
+
+			// 提交事务
+			if err := tx.Commit().Error; err != nil {
+				zlog.Error("事务提交失败", zap.Error(err))
+				tx.Rollback()
 				return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 			}
 
@@ -152,6 +174,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		}
 		// 正常存在且未删除
 		zlog.Debug("该电话已经存在，注册失败")
+		tx.Rollback()
 		return "该电话已经存在，注册失败", nil, constants.BizCodeInvalid
 	}
 
@@ -166,11 +189,20 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	newUser.IsAdmin = 0
 	newUser.Status = user_status_enum.NORMAL
 
-	res := dao.GormDB.Create(&newUser)
+	res := tx.Create(&newUser)
 	if res.Error != nil {
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
+	}
+
 	// 注册成功，chat client建立
 	//if err := chat.NewClientInit(c, newUser.Uuid); err != nil {
 	//	return "", err
@@ -268,8 +300,8 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 		}
 	}()
 
-	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.UserInfo{}); res.Error != nil {
-		zlog.Error("删除用户失败", zap.Error(res.Error))
+	if res := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Message{}); res.Error != nil {
+		zlog.Error("删除聊天消息失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
@@ -288,6 +320,12 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 
 	if res := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.ContactApply{}); res.Error != nil {
 		zlog.Error("删除申请记录失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.UserInfo{}); res.Error != nil {
+		zlog.Error("删除用户失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
@@ -313,6 +351,15 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	// 	zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
 	// }
 	if err := DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := DelKeysByPrefixAndUUIDListWithSuffix("session", uuidList, "*"); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := DelKeysByPatternAndUUIDList("message_list_*", uuidList); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := DelKeysByPrefixAndUUIDListWithSuffix("message_list", uuidList, "*"); err != nil {
 		zlog.Error(err.Error())
 	}
 	if err := myredis.DelKeysWithPrefix("session_list"); err != nil {

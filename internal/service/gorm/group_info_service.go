@@ -494,12 +494,6 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 		tx.Rollback()
 		return "只有群主才能解散群聊", constants.BizCodeInvalid
 	}
-	// 删除 GroupInfo（软删）
-	if res := tx.Delete(&group); res.Error != nil {
-		zlog.Error("解散群聊失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
 
 	// 物理删除 group_member
 	if res := tx.
@@ -510,6 +504,13 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
+
+	if res := tx.Where("receive_id = ?", groupId).Delete(&model.Message{}); res.Error != nil {
+		zlog.Error("删除聊天消息失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
 	// 删除相关会话
 	if res := tx.Where("receive_id = ?", groupId).Delete(&model.Session{}); res.Error != nil {
 		zlog.Error("删除群会话失败", zap.Error(res.Error))
@@ -528,6 +529,14 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
+
+	// 删除 GroupInfo（软删）
+	if res := tx.Delete(&group); res.Error != nil {
+		zlog.Error("解散群聊失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
 		zlog.Error("事务提交失败", zap.Error(err))
@@ -590,13 +599,6 @@ func (g *groupInfoService) DeleteGroupsByAdmin(uuidList []string) (string, int) 
 		ownerIdSet[g.OwnerId] = struct{}{}
 	}
 
-	// 删除群信息（GORM软删除）
-	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.GroupInfo{}); res.Error != nil {
-		zlog.Error("删除群信息失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
 	// 物理删除 group_member
 	if res := tx.
 		Where("group_uuid IN ?", uuidList).
@@ -624,6 +626,13 @@ func (g *groupInfoService) DeleteGroupsByAdmin(uuidList []string) (string, int) 
 	// 删除申请记录
 	if res := tx.Where("contact_id IN ?", uuidList).Delete(&model.ContactApply{}); res.Error != nil {
 		zlog.Error("删除申请记录失败", zap.Error(res.Error))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	// 删除群信息（GORM软删除）
+	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.GroupInfo{}); res.Error != nil {
+		zlog.Error("删除群信息失败", zap.Error(res.Error))
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
