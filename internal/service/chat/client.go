@@ -42,6 +42,13 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// send 封装了对 Conn.WriteMessage 的并发保护
+func (c *Client) send(msgType int, data []byte) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	return c.Conn.WriteMessage(msgType, data)
+}
+
 // NewClientInit 当接受到前端有登录消息时，会调用该函数
 func NewClientInit(c *gin.Context, clientId string) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -116,13 +123,6 @@ func (c *Client) readLoop() {
 			zlog.Error("kafka write error", zap.Error(err), zap.String("uuid", c.Uuid))
 		}
 	}
-}
-
-// send 封装了对 Conn.WriteMessage 的并发保护
-func (c *Client) send(msgType int, data []byte) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-	return c.Conn.WriteMessage(msgType, data)
 }
 
 // writeLoop 从 SendBack 通道读取消息并发送给 websocket

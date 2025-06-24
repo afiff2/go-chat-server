@@ -42,15 +42,3 @@ func SendResponse(c *gin.Context, message string, ret int, data interface{}) {
 		Data:    data,
 	})
 }
-
-// func Success(c *gin.Context, message string, data interface{}) {
-// 	JsonBack(c, message, CodeSuccess, data)
-// }
-
-// func Invalid(c *gin.Context, message string) {
-// 	JsonBack(c, message, CodeInvalid, nil)
-// }
-
-// func Error(c *gin.Context, message string) {
-// 	JsonBack(c, message, CodeError, nil)
-// }
