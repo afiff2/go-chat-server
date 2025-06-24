@@ -81,7 +81,6 @@ func CreateTopic() error {
 		}
 	}
 
-	//跟换topic设置时先手动删除原来的
 	if !topicExists {
 		topicConfigs := []kafka.TopicConfig{
 			{
