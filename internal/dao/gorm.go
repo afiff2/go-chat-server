@@ -22,7 +22,7 @@ func init() {
 	socket := conf.Mysql.Socket
 	databaseName := conf.Mysql.DatabaseName
 
-	dsn := fmt.Sprintf("%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&tx_isolation=REPEATABLE-READ", user, socket, databaseName)
+	dsn := fmt.Sprintf("%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&transaction_isolation='REPEATABLE-READ'", user, socket, databaseName)
 
 	var err error
 	GormDB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
