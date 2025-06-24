@@ -80,7 +80,7 @@ func (s *sessionService) CreateSession(req request.OpenSessionRequest) (string, 
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, "", constants.BizCodeError
 	}
-	if err := SetCache("session_"+req.SendId+"_"+req.ReceiveId, &session); err != nil {
+	if err := myredis.SetCache("session_"+req.SendId+"_"+req.ReceiveId, &session); err != nil {
 		zlog.Warn("预写 session 缓存失败", zap.String("SendId", req.SendId), zap.String("ReceiveId", req.ReceiveId), zap.Error(err))
 	}
 	if req.ReceiveId[0] == 'G' {
@@ -157,7 +157,7 @@ func (s *sessionService) OpenSession(req request.OpenSessionRequest) (string, st
 				return s.CreateSession(createReq)
 			}
 		}
-		if err := SetCache("session_"+req.SendId+"_"+req.ReceiveId, &session); err != nil {
+		if err := myredis.SetCache("session_"+req.SendId+"_"+req.ReceiveId, &session); err != nil {
 			zlog.Warn("预写 session 缓存失败", zap.String("SendId", req.SendId), zap.String("ReceiveId", req.ReceiveId), zap.Error(err))
 		}
 		return "会话创建成功", session.Uuid, constants.BizCodeSuccess
@@ -199,7 +199,7 @@ func (s *sessionService) GetUserSessionList(ownerId string) (string, []respond.U
 		if len(sessionListRsp) == 0 {
 			return "未创建用户会话", nil, constants.BizCodeSuccess
 		}
-		if err := SetCache("session_list_"+ownerId, &sessionListRsp); err != nil {
+		if err := myredis.SetCache("session_list_"+ownerId, &sessionListRsp); err != nil {
 			zlog.Warn("预写 session_list 缓存失败", zap.String("ownerId", ownerId), zap.Error(err))
 		}
 		return "获取成功", sessionListRsp, constants.BizCodeSuccess
@@ -241,7 +241,7 @@ func (s *sessionService) GetGroupSessionList(ownerId string) (string, []respond.
 		if len(sessionListRsp) == 0 {
 			return "未创建群聊会话", nil, constants.BizCodeSuccess
 		}
-		if err := SetCache("group_session_list_"+ownerId, &sessionListRsp); err != nil {
+		if err := myredis.SetCache("group_session_list_"+ownerId, &sessionListRsp); err != nil {
 			zlog.Warn("预写 group_session_list 缓存失败", zap.String("ownerId", ownerId), zap.Error(err))
 		}
 		return "获取成功", sessionListRsp, constants.BizCodeSuccess

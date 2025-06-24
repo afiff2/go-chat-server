@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/afiff2/go-chat-server/internal/config"
 	"github.com/afiff2/go-chat-server/internal/dao"
@@ -28,48 +27,30 @@ var MessageService = new(messageService)
 
 // GetMessageList 获取聊天记录
 func (m *messageService) GetMessageList(userOneId, userTwoId string) (string, []respond.GetMessageListRespond, int) {
-	//先对两个 ID 做字典序排序
-	ids := []string{userOneId, userTwoId}
-	sort.Strings(ids)
-	cacheKey := fmt.Sprintf("message_list_%s_%s", ids[0], ids[1])
-	rspString, err := myredis.GetKeyNilIsErr(cacheKey)
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			zlog.Debug("message_list 缓存未命中，回库读取", zap.String("key", cacheKey))
-		} else {
-			zlog.Warn("message_list 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
-		}
-		var messageList []model.Message
-		if res := dao.GormDB.Where("(send_id = ? AND receive_id = ?) OR (send_id = ? AND receive_id = ?)", userOneId, userTwoId, userTwoId, userOneId).Order("created_at ASC").Find(&messageList); res.Error != nil {
-			zlog.Error(res.Error.Error())
-			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
-		}
-		var rspList []respond.GetMessageListRespond
-		for _, message := range messageList {
-			rspList = append(rspList, respond.GetMessageListRespond{
-				SendId:     message.SendId,
-				SendName:   message.SendName,
-				SendAvatar: message.SendAvatar,
-				ReceiveId:  message.ReceiveId,
-				Content:    message.Content,
-				Url:        message.Url,
-				Type:       message.Type,
-				FileType:   message.FileType,
-				FileName:   message.FileName,
-				FileSize:   message.FileSize,
-				CreatedAt:  message.CreatedAt.Format("2006-01-02 15:04:05"),
-			})
-		}
-		if err := SetCache(cacheKey, &rspList); err != nil {
-			zlog.Warn("预写 message 缓存失败", zap.String("userOneId", userOneId), zap.String("userTwoId", userTwoId), zap.Error(err))
-		}
-		return "获取聊天记录成功", rspList, constants.BizCodeSuccess
+
+	var messageList []model.Message
+	if res := dao.GormDB.Where("(send_id = ? AND receive_id = ?) OR (send_id = ? AND receive_id = ?)", userOneId, userTwoId, userTwoId, userOneId).Order("created_at ASC").Find(&messageList); res.Error != nil {
+		zlog.Error(res.Error.Error())
+		return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 	}
-	var rsp []respond.GetMessageListRespond
-	if err := json.Unmarshal([]byte(rspString), &rsp); err != nil {
-		zlog.Error(err.Error())
+	var rspList []respond.GetMessageListRespond
+	for _, message := range messageList {
+		rspList = append(rspList, respond.GetMessageListRespond{
+			SendId:     message.SendId,
+			SendName:   message.SendName,
+			SendAvatar: message.SendAvatar,
+			ReceiveId:  message.ReceiveId,
+			Content:    message.Content,
+			Url:        message.Url,
+			Type:       message.Type,
+			FileType:   message.FileType,
+			FileName:   message.FileName,
+			FileSize:   message.FileSize,
+			CreatedAt:  message.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
 	}
-	return "获取聊天记录成功", rsp, constants.BizCodeSuccess
+
+	return "获取聊天记录成功", rspList, constants.BizCodeSuccess
 }
 
 // GetGroupMessageList 获取群聊消息记录
@@ -104,7 +85,7 @@ func (m *messageService) GetGroupMessageList(groupId string) (string, []respond.
 			}
 			rspList = append(rspList, rsp)
 		}
-		if err := SetCache(cacheKey, &rspList); err != nil {
+		if err := myredis.SetCache(cacheKey, &rspList); err != nil {
 			zlog.Warn("预写 group_messagelist 缓存失败", zap.String("groupId", groupId), zap.Error(err))
 		}
 		return "获取聊天记录成功", rspList, constants.BizCodeSuccess

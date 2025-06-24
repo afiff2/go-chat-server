@@ -1,10 +1,9 @@
-package gorm
+package redis
 
 import (
 	"encoding/json"
 	"time"
 
-	myredis "github.com/afiff2/go-chat-server/internal/service/redis"
 	"github.com/afiff2/go-chat-server/pkg/constants"
 	"github.com/afiff2/go-chat-server/pkg/zlog"
 	"go.uber.org/zap"
@@ -18,7 +17,7 @@ func SetCache[T any](key string, data *T) error {
 		return err
 	}
 
-	err = myredis.SetKeyEx(key, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
+	err = SetKeyEx(key, string(rspBytes), constants.REDIS_TIMEOUT*time.Minute)
 	if err != nil {
 		zlog.Error("写入 Redis 缓存失败", zap.Error(err))
 		return err
@@ -39,7 +38,7 @@ func DelKeysByUUIDList(prefix string, uuids []string) error {
 	}
 
 	// 调用已有的批量删除
-	return myredis.DelKeys(keys)
+	return DelKeys(keys)
 }
 
 // DelKeysByPatternAndUUIDList 批量删除给定带通配符前缀 + 一组 uuid 对应的 keys。
@@ -54,7 +53,7 @@ func DelKeysByPatternAndUUIDList(prefixPattern string, uuids []string) error {
 		// 构造完整的模式：prefixPattern + uuid
 		// 例如 "session_*_" + "abc123" => "session_*_abc123"
 		pattern := prefixPattern + "_" + id
-		if err := myredis.DelKeysWithPattern(pattern); err != nil {
+		if err := DelKeysWithPattern(pattern); err != nil {
 			return err
 		}
 	}
@@ -69,7 +68,7 @@ func DelKeysByPrefixAndUUIDListWithSuffix(prefix string, uuids []string, suffixP
 
 	for _, id := range uuids {
 		pattern := prefix + "_" + id + "_" + suffixPattern
-		if err := myredis.DelKeysWithPattern(pattern); err != nil {
+		if err := DelKeysWithPattern(pattern); err != nil {
 			return err
 		}
 	}

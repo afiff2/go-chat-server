@@ -61,7 +61,7 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 	// year, month, day := user.CreatedAt.Date()
 	// loginRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info_"+loginRsp.Uuid, loginRsp); err != nil {
+	if err := myredis.SetCache("user_info_"+loginRsp.Uuid, loginRsp); err != nil {
 		return "登陆成功, 写入 Redis 缓存失败", loginRsp, constants.BizCodeSuccess
 	}
 
@@ -75,7 +75,7 @@ func (u *userInfoService) Login(loginReq request.LoginRequest) (string, *respond
 		ContactGender:    user.Gender,
 		ContactSignature: user.Signature,
 	}
-	if err := SetCache("contact_info_"+loginRsp.Uuid, &resp); err != nil {
+	if err := myredis.SetCache("contact_info_"+loginRsp.Uuid, &resp); err != nil {
 		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", loginRsp.Uuid), zap.Error(err))
 	}
 
@@ -153,7 +153,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				IsAdmin:   user.IsAdmin,
 				Status:    user.Status,
 			}
-			if err := SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
+			if err := myredis.SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
 				zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 			}
 			resp := respond.GetContactInfoRespond{
@@ -166,7 +166,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 				ContactGender:    user.Gender,
 				ContactSignature: user.Signature,
 			}
-			if err := SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
+			if err := myredis.SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
 			}
 
@@ -224,7 +224,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 	// registerRsp.CreatedAt = fmt.Sprintf("%d.%d.%d", year, month, day)
 
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
+	if err := myredis.SetCache("user_info_"+registerRsp.Uuid, registerRsp); err != nil {
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
@@ -238,7 +238,7 @@ func (u *userInfoService) Register(registerReq request.RegisterRequest) (string,
 		ContactGender:    newUser.Gender,
 		ContactSignature: newUser.Signature,
 	}
-	if err := SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
+	if err := myredis.SetCache("contact_info_"+registerRsp.Uuid, &resp); err != nil {
 		zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", registerRsp.Uuid), zap.Error(err))
 	}
 
@@ -337,10 +337,10 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 	//群聊相关的缓存在退群/解散群时已经修改
-	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
-	if err := DelKeysByUUIDList("contact_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("contact_info", uuidList); err != nil {
 		zlog.Warn("删除联系人缓存失败", zap.Error(err))
 	}
 	if err := myredis.DelKeysWithPrefix("contact_user_list"); err != nil {
@@ -350,16 +350,10 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	// if err := DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
 	// 	zlog.Warn("删除contact_user_list缓存失败", zap.Error(err))
 	// }
-	if err := DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
+	if err := myredis.DelKeysByPatternAndUUIDList("session_*", uuidList); err != nil {
 		zlog.Error(err.Error())
 	}
-	if err := DelKeysByPrefixAndUUIDListWithSuffix("session", uuidList, "*"); err != nil {
-		zlog.Error(err.Error())
-	}
-	if err := DelKeysByPatternAndUUIDList("message_list_*", uuidList); err != nil {
-		zlog.Error(err.Error())
-	}
-	if err := DelKeysByPrefixAndUUIDListWithSuffix("message_list", uuidList, "*"); err != nil {
+	if err := myredis.DelKeysByPrefixAndUUIDListWithSuffix("session", uuidList, "*"); err != nil {
 		zlog.Error(err.Error())
 	}
 	if err := myredis.DelKeysWithPrefix("session_list"); err != nil {
@@ -404,7 +398,7 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 			Status:    user.Status,
 		}
 		// 将用户信息写入 Redis 缓存
-		if err := SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
+		if err := myredis.SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
 			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
 
@@ -419,7 +413,7 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 				ContactGender:    user.Gender,
 				ContactSignature: user.Signature,
 			}
-			if err := SetCache("contact_info_"+uuid, &resp); err != nil {
+			if err := myredis.SetCache("contact_info_"+uuid, &resp); err != nil {
 				zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", uuid), zap.Error(err))
 			}
 		} else {
@@ -485,7 +479,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 		Status:    user.Status,
 	}
 	// 将用户信息写入 Redis 缓存
-	if err := SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
+	if err := myredis.SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
 		zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 	}
 
@@ -501,7 +495,7 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 			ContactGender:    user.Gender,
 			ContactSignature: user.Signature,
 		}
-		if err := SetCache("contact_info_"+updateReq.Uuid, &resp); err != nil {
+		if err := myredis.SetCache("contact_info_"+updateReq.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", updateReq.Uuid), zap.Error(err))
 		}
 	} else {
@@ -554,7 +548,7 @@ func (u *userInfoService) AbleUsers(uuidList []string) (string, int) {
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
 	// 被禁用的不在缓存里，启用不用删除
@@ -588,10 +582,10 @@ func (u *userInfoService) DisableUsers(uuidList []string) (string, int) {
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
-	if err := DelKeysByUUIDList("contact_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("contact_info", uuidList); err != nil {
 		zlog.Warn("删除联系人缓存失败", zap.Error(err))
 	}
 	// 删除所有 "contact_user_list" 前缀的 Redis key
@@ -612,7 +606,7 @@ func (u *userInfoService) SetAdmin(uuidList []string, isAdmin int8) (string, int
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	if err := DelKeysByUUIDList("user_info", uuidList); err != nil {
+	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
 

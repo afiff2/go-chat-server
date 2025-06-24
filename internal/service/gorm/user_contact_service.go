@@ -58,7 +58,7 @@ func (u *userContactService) GetUserList(ownerId string) (string, []respond.MyUs
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeInvalid
 		}
 
-		if err := SetCache("contact_user_list_"+ownerId, &userList); err != nil {
+		if err := myredis.SetCache("contact_user_list_"+ownerId, &userList); err != nil {
 			zlog.Warn("预写 contact_user_list 缓存失败", zap.String("ownerId", ownerId), zap.Error(err))
 		}
 		return "获取用户列表成功", userList, constants.BizCodeSuccess
@@ -95,7 +95,7 @@ func (u *userContactService) LoadMyJoinedGroup(ownerId string) (string, []respon
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 		}
 
-		if err := SetCache("my_joined_group_list_"+ownerId, &groupList); err != nil {
+		if err := myredis.SetCache("my_joined_group_list_"+ownerId, &groupList); err != nil {
 			zlog.Warn("预写 my_joined_group_list 缓存失败", zap.String("ownerId", ownerId), zap.Error(err))
 		}
 		return "获取加入群成功", groupList, constants.BizCodeSuccess
@@ -155,7 +155,7 @@ func (u *userContactService) GetContactInfo(contactId string) (string, respond.G
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info_"+contactId, &resp); err != nil {
+		if err := myredis.SetCache("contact_info_"+contactId, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", contactId), zap.Error(err))
 		}
 		return "获取联系人信息成功", resp, constants.BizCodeSuccess
@@ -182,7 +182,7 @@ func (u *userContactService) GetContactInfo(contactId string) (string, respond.G
 			Status:    user.Status,
 		}
 		// 将用户信息写入 Redis 缓存
-		if err := SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
+		if err := myredis.SetCache("user_info_"+rsp.Uuid, &rsp); err != nil {
 			zlog.Warn("写入 Redis 缓存失败", zap.Error(err))
 		}
 
@@ -201,7 +201,7 @@ func (u *userContactService) GetContactInfo(contactId string) (string, respond.G
 			ContactGender:    user.Gender,
 			ContactSignature: user.Signature,
 		}
-		if err := SetCache("contact_info_"+contactId, &resp); err != nil {
+		if err := myredis.SetCache("contact_info_"+contactId, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", contactId), zap.Error(err))
 		}
 		return "获取联系人信息成功", resp, constants.BizCodeSuccess
@@ -663,7 +663,7 @@ func (u *userContactService) PassContactApply(ownerId string, contactId string) 
 		Status:    group.Status,
 		IsDeleted: group.DeletedAt.Valid,
 	}
-	if err := SetCache("group_info_"+group.Uuid, rsp); err != nil {
+	if err := myredis.SetCache("group_info_"+group.Uuid, rsp); err != nil {
 		zlog.Warn("写入 redis 缓存失败", zap.Error(err))
 	}
 
@@ -677,7 +677,7 @@ func (u *userContactService) PassContactApply(ownerId string, contactId string) 
 			ContactMemberCnt: group.MemberCnt,
 			ContactOwnerId:   group.OwnerId,
 		}
-		if err := SetCache("contact_info_"+group.Uuid, &resp); err != nil {
+		if err := myredis.SetCache("contact_info_"+group.Uuid, &resp); err != nil {
 			zlog.Warn("预写 contact_info 缓存失败", zap.String("contactId", group.Uuid), zap.Error(err))
 		}
 	} else {

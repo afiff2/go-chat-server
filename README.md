@@ -41,8 +41,6 @@ contact_mygroup_list_{userId} //我创建的群组 ok
 my_joined_group_list_{userId} //我加入的群组 ok
 "contact_user_list_" + userId //我的好友（不含群组）列表 ok
 
-message_list_{userOneId}_{userTwoId} //消息列表
-
 group_info_{groupId}        //组的信息 ok
 group_memberlist_{groupId}  //组中的人 ok
 group_messagelist_{groupId} //组中message
