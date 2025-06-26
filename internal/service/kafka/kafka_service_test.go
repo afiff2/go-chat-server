@@ -38,7 +38,7 @@ func TestSendMessageAndReadMessage(t *testing.T) {
 	}()
 
 	// 让 Reader 稍微“就绪”
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// 再发送消息
 	err := KafkaService.ChatWriter.WriteMessages(ctx, kafka.Message{
