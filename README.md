@@ -1,29 +1,9 @@
-curl -X POST http://localhost:8080/user/register \
-     -H "Content-Type: application/json" \
-     -d '{
-           "telephone": "13800000000",
-           "password": "123456",
-           "nickname": "testuser"
-         }'
-
-
-curl -X POST http://localhost:8080/user/login \
-     -H "Content-Type: application/json" \
-     -d '{
-           "telephone": "13800000000",
-           "password": "123456"
-         }'
-
-curl -X POST http://localhost:8080/user/delete \
-     -H "Content-Type: application/json" \
-     -d '{
-           "uuid_list": ["uuid1", "uuid2"]
-         }'
-
+# 必需修改的常量
+[mysqlConfig] socket
+[log] path
+config.go 的defaultPath
 
 [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
-检查有没有 .Delete() 触发软删除
-检查一下一些服务有没有关闭 redis
 
 # 启动 Zookeeper
 bin/zookeeper-server-start.sh config/zookeeper.properties
