@@ -1,94 +1,48 @@
 <template>
   <div class="register-wrap">
-    <div
-      class="register-window"
-      :style="{
-        boxShadow: `var(${'--el-box-shadow-dark'})`,
-      }"
-    >
+    <div class="register-window" :style="{
+      boxShadow: `var(${'--el-box-shadow-dark'})`,
+    }">
       <h2 class="register-item">注册</h2>
-      <el-form
-        ref="formRef"
-        :model="registerData"
-        label-width="70px"
-        class="demo-dynamic"
-      >
-        <el-form-item
-          prop="nickname"
-          label="昵称"
-          :rules="[
-            {
-              required: true,
-              message: '此项为必填项',
-              trigger: 'blur',
-            },
-            {
-              min: 3,
-              max: 10,
-              message: '昵称长度在 3 到 10 个字符',
-              trigger: 'blur',
-            },
-          ]"
-        >
+      <el-form ref="formRef" :model="registerData" label-width="70px" class="demo-dynamic">
+        <el-form-item prop="nickname" label="昵称" :rules="[
+          {
+            required: true,
+            message: '此项为必填项',
+            trigger: 'blur',
+          },
+          {
+            min: 3,
+            max: 10,
+            message: '昵称长度在 3 到 10 个字符',
+            trigger: 'blur',
+          },
+        ]">
           <el-input v-model="registerData.nickname" />
         </el-form-item>
-        <el-form-item
-          prop="telephone"
-          label="账号"
-          :rules="[
-            {
-              required: true,
-              message: '此项为必填项',
-              trigger: 'blur',
-            },
-          ]"
-        >
+        <el-form-item prop="telephone" label="手机号" :rules="[
+          {
+            required: true,
+            message: '此项为必填项',
+            trigger: 'blur',
+          },
+        ]">
           <el-input v-model="registerData.telephone" />
         </el-form-item>
-        <el-form-item
-          prop="password"
-          label="密码"
-          :rules="[
-            {
-              required: true,
-              message: '此项为必填项',
-              trigger: 'blur',
-            },
-          ]"
-        >
+        <el-form-item prop="password" label="密码" :rules="[
+          {
+            required: true,
+            message: '此项为必填项',
+            trigger: 'blur',
+          },
+        ]">
           <el-input type="password" v-model="registerData.password" />
-        </el-form-item>
-        <el-form-item
-          prop="sms_code"
-          label="验证码"
-          :rules="[
-            {
-              required: true,
-              message: '此项为必填项',
-              trigger: 'blur',
-            },
-          ]"
-        >
-          <el-input v-model="registerData.sms_code" style="max-width: 200px">
-            <template #append>
-              <el-button
-                @click="sendSmsCode"
-                style="background-color: rgb(229, 132, 132); color: #ffffff"
-                >点击发送</el-button
-              >
-            </template>
-          </el-input>
         </el-form-item>
       </el-form>
       <div class="register-button-container">
-        <el-button type="primary" class="register-btn" @click="handleRegister"
-          >注册</el-button
-        >
+        <el-button type="primary" class="register-btn" @click="handleRegister">注册</el-button>
       </div>
       <div class="go-login-button-container">
-        <button class="go-sms-login-btn" @click="handleSmsLogin">
-          验证码登录
-        </button>
         <button class="go-password-login-btn" @click="handleLogin">
           密码登录
         </button>
@@ -111,7 +65,6 @@ export default {
         telephone: "",
         password: "",
         nickname: "",
-        sms_code: "",
       },
     });
     const router = useRouter();
@@ -121,8 +74,7 @@ export default {
         if (
           !data.registerData.nickname ||
           !data.registerData.telephone ||
-          !data.registerData.password ||
-          !data.registerData.sms_code
+          !data.registerData.password
         ) {
           ElMessage.error("请填写完整注册信息。");
           return;
@@ -139,35 +91,19 @@ export default {
           return;
         }
         const response = await axios.post(
-          store.state.backendUrl + "/register",
+          store.state.backendUrl + "/user/register",
           data.registerData
         ); // 发送POST请求
         if (response.data.code == 200) {
           ElMessage.success(response.data.message);
-          console.log(response.data.message);
-          // 查看avatar前缀有没有http
-          if (!response.data.data.avatar.startsWith("http")) {
-            response.data.data.avatar =
-              store.state.backendUrl + response.data.data.avatar;
+          // 1. 处理 avatar 前缀
+          const user = response.data.data;
+          if (!user.avatar.startsWith("http")) {
+            user.avatar = store.state.backendUrl + user.avatar;
           }
-          store.commit("setUserInfo", response.data.data);
-          // 准备创建websocket连接
-          const wsUrl =
-            store.state.wsUrl + "/wss?client_id=" + response.data.data.uuid;
-          console.log(wsUrl);
-          store.state.socket = new WebSocket(wsUrl);
-          store.state.socket.onopen = () => {
-            console.log("WebSocket连接已打开");
-          };
-          store.state.socket.onmessage = (message) => {
-            console.log("收到消息：", message.data);
-          };
-          store.state.socket.onclose = () => {
-            console.log("WebSocket连接已关闭");
-          };
-          store.state.socket.onerror = () => {
-            console.log("WebSocket连接发生错误");
-          };
+          // 2. 只提交用户信息，剩下的由 App.vue 的 watch 去触发 initAuth
+          store.commit("setUserInfo", user);
+          // 3. 跳转到会话列表
           router.push("/chat/sessionlist");
         } else {
           ElMessage.error(response.data.message);
@@ -187,47 +123,11 @@ export default {
       router.push("/login");
     };
 
-    const handleSmsLogin = () => {
-      router.push("/smsLogin");
-    };
-
-    const sendSmsCode = async () => {
-      if (
-        !data.registerData.telephone ||
-        !data.registerData.nickname ||
-        !data.registerData.password
-      ) {
-        ElMessage.error("请填写完整注册信息。");
-        return;
-      }
-      if (!checkTelephoneValid()) {
-        ElMessage.error("请输入有效的手机号码。");
-        return;
-      }
-      const req = {
-        telephone: data.registerData.telephone,
-      };
-      const rsp = await axios.post(
-        store.state.backendUrl + "/user/sendSmsCode",
-        req
-      );
-      console.log(rsp);
-      if (rsp.data.code == 200) {
-        ElMessage.success(rsp.data.message);
-      } else if (rsp.data.code == 400) {
-        ElMessage.warning(rsp.data.message);
-      } else {
-        ElMessage.error(rsp.data.message);
-      }
-    };
-
     return {
       ...toRefs(data),
       router,
       handleRegister,
-      handleLogin,
-      handleSmsLogin,
-      sendSmsCode,
+      handleLogin
     };
   },
 };
@@ -260,8 +160,10 @@ export default {
 
 .register-button-container {
   display: flex;
-  justify-content: center; /* 水平居中 */
-  margin-top: 20px; /* 可选，根据需要调整按钮与输入框之间的间距 */
+  justify-content: center;
+  /* 水平居中 */
+  margin-top: 20px;
+  /* 可选，根据需要调整按钮与输入框之间的间距 */
   width: 100%;
 }
 

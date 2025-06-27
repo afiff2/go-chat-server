@@ -5,7 +5,7 @@
     }">
       <h2 class="login-item">登录</h2>
       <el-form :model="loginData" label-width="70px" class="demo-dynamic">
-        <el-form-item prop="telephone" label="账号" :rules="[
+        <el-form-item prop="telephone" label="手机号" :rules="[
           {
             required: true,
             message: '此项为必填项',

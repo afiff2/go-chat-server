@@ -48,7 +48,7 @@ export default {
 
         // 3. 建立 WebSocket 连接
         const ws = new WebSocket(
-          `${store.state.wsUrl}/login?client_id=${uuid}`
+          `${store.state.wsUrl}/ws/login?client_id=${uuid}`
         )
         ws.onopen = () => console.log('WebSocket 连接已打开')
         ws.onmessage = (e) => console.log('收到消息：', e.data)
