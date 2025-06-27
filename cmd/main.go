@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -9,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/afiff2/go-chat-server/internal/config"
 	"github.com/afiff2/go-chat-server/internal/dao"
 	"github.com/afiff2/go-chat-server/internal/https_server"
 	"github.com/afiff2/go-chat-server/internal/service/chat"
@@ -30,8 +32,10 @@ func main() {
 		chat.KafkaChatServer.Start(rootCtx)
 	}()
 
+	addr := fmt.Sprintf("%s:%d", config.GetConfig().Server.Host, config.GetConfig().Server.Port)
+
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    addr,
 		Handler: https_server.GinEngine,
 	}
 

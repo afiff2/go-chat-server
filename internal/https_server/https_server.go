@@ -3,6 +3,7 @@ package https_server
 import (
 	v1 "github.com/afiff2/go-chat-server/api"
 	"github.com/afiff2/go-chat-server/internal/config"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -10,6 +11,13 @@ var GinEngine *gin.Engine
 
 func init() {
 	GinEngine = gin.Default()
+
+	GinEngine.Use(cors.New(cors.Config{
+		AllowOrigins:  []string{"*"},
+		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders: []string{"Content-Length"},
+	}))
 
 	GinEngine.Static("/static/avatars", config.GetConfig().StaticSrc.StaticAvatarPath) // 映射头像目录
 	GinEngine.Static("/static/files", config.GetConfig().StaticSrc.StaticFilePath)

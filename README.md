@@ -2,6 +2,7 @@
 [mysqlConfig] socket
 [log] path
 config.go 的defaultPath
+前端的store
 
 [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
 

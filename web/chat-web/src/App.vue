@@ -3,85 +3,72 @@
 </template>
 
 <script>
-import { onMounted } from "vue";
-import { useStore } from "vuex";
-import axios from "axios";
-export default {
-  name: "App",
-  setup() {
-    const store = useStore();
-    const getUserInfo = async () => {
-      try {
-        const req = {
-          uuid: store.state.userInfo.uuid,
-        };
-        const rsp = await axios.post(
-          store.state.backendUrl + "/user/get",
-          req
-        );
-        if (rsp.data.code == 200) {
-          if (!rsp.data.data.avatar.startsWith("http")) {
-            rsp.data.data.avatar = store.state.backendUrl + rsp.data.data.avatar;
-          }
-          store.commit("setUserInfo", rsp.data.data);
-        } else {
-          console.error(rsp.data.message);
-        }
-        console.log(rsp);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    const logout = async () => {
-      store.commit("cleanUserInfo");
-      const req = {
-        owner_id: data.userInfo.uuid,
-      };
-      const rsp = await axios.post(
-        store.state.backendUrl + "/ws/logout",
-        req
-      );
-      if (rsp.data.code == 200) {
-        router.push("/login");
-        ElMessage.success("账号被封禁，退出登录");
-      } else {
-        ElMessage.error(rsp.data.message);
-      }
-    };
-    onMounted(() => {
-      if (store.state.userInfo.uuid) {
-        getUserInfo();
-        if (store.state.userInfo.status == 1) {
-          logout();
-        }
-        const wsUrl =
-          store.state.wsUrl + "/login?client_id=" + store.state.userInfo.uuid;
-          console.log(wsUrl);
-        store.state.socket = new WebSocket(wsUrl);
-        store.state.socket.onopen = () => {
-          console.log("WebSocket连接已打开");console.log("连接信令服务器成功");
-        };
-        store.state.socket.onmessage = (message) => {
-          console.log("收到消息：", message.data);
-        };
-        store.state.socket.onclose = () => {
-          console.log("WebSocket连接已关闭");
-        console.log("连接信令服务器断开");
-        };
-        store.state.socket.onerror = () => {
-          console.log("WebSocket连接发生错误");console.log("连接信令服务器失败，错误信息：", error);
-        };
-        console.log(store.state.socket);
-      }
-    });
-  },
-};
-</script>
+import { watch } from 'vue'
+import { useStore } from 'vuex'
+import axios from 'axios'
+import router from './router'
+import { ElMessage } from 'element-plus'
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box; /* 推荐使用，以确保布局计算的一致性 */
+export default {
+  name: 'App',
+  setup() {
+    const store = useStore()
+
+    // 核心初始化函数：获取用户、检查状态、打开 WebSocket
+    const initAuth = async (uuid) => {
+      if (!uuid) return
+
+      try {
+        // 1. 拉取用户信息
+        const { data: rsp } = await axios.post(
+          `${store.state.backendUrl}/user/get`,
+          { uuid }
+        )
+        if (rsp.code !== 200) {
+          console.error(rsp.message)
+          return
+        }
+        const user = rsp.data
+        if (!user.avatar.startsWith('http')) {
+          user.avatar = store.state.backendUrl + user.avatar
+        }
+        store.commit('setUserInfo', user)
+
+        // 2. 如果状态码表示被封禁，登出并跳转
+        if (user.status === 1) {
+          store.commit('cleanUserInfo')
+          await axios.post(
+            `${store.state.backendUrl}/ws/logout`,
+            { owner_id: uuid }
+          )
+          router.push('/login')
+          ElMessage.success('账号被封禁，已退出登录')
+          return
+        }
+
+        // 3. 建立 WebSocket 连接
+        const ws = new WebSocket(
+          `${store.state.wsUrl}/login?client_id=${uuid}`
+        )
+        ws.onopen = () => console.log('WebSocket 连接已打开')
+        ws.onmessage = (e) => console.log('收到消息：', e.data)
+        ws.onclose = () => console.log('WebSocket 已关闭')
+        ws.onerror = (e) => console.error('WebSocket 错误：', e)
+        store.commit('setSocket', ws)
+
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    // 监视 userInfo.uuid，有值时立即调用 initAuth
+    watch(
+      () => store.state.userInfo.uuid,
+      initAuth,
+      { immediate: true }
+    )
+
+    return {}
+  }
 }
-</style>
+</script>
