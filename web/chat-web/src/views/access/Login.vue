@@ -79,7 +79,7 @@ export default {
               store.state.backendUrl + response.data.data.avatar;
           }
           store.commit("setUserInfo", response.data.data);
-          router.push("/chat/sessionList");
+          router.push("/chat/sessionlist");
         }
         else {
           ElMessage.error(response.data.message);

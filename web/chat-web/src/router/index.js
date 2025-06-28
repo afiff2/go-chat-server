@@ -31,11 +31,11 @@ const routes = [
   //   name: 'ContactChat',
   //   component: () => import('../views/chat/contact/ContactChat.vue')
   // },
-  // {
-  //   path: '/chat/sessionList',
-  //   name: 'SessionList',
-  //   component: () => import('../views/chat/session/SessionList.vue')
-  // },
+  {
+    path: '/chat/sessionlist',
+    name: 'SessionList',
+    component: () => import('../views/chat/session/SessionList.vue')
+  },
   // {
   //   path: '/manager',
   //   name: 'Manager',
