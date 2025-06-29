@@ -16,11 +16,11 @@ const routes = [
     name: 'Register',
     component: () => import('../views/access/Register.vue')
   },
-  // {
-  //   path: '/chat/owninfo',
-  //   name: 'OwnInfo',
-  //   component: () => import('../views/chat/user/OwnInfo.vue')
-  // },
+  {
+    path: '/chat/owninfo',
+    name: 'OwnInfo',
+    component: () => import('../views/chat/user/OwnInfo.vue')
+  },
   // {
   //   path: '/chat/contactlist',
   //   name: 'ContactList',

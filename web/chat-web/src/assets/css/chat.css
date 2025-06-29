@@ -1,219 +1,206 @@
-/* 变量与工具类 */
-:root {
---color-border: #ccc;
---color-main-bg: #fcd2d2;    /* rgb(252,210.9,210.9) */
---radius-lg: 30px;
-}
-
-.d-flex {
-display: flex;
-justify-content: center;
-align-items: center;
-}
-
-/* 背景容器 */
 .chat-wrap {
-height: 100vh;
-background: url(~@/assets/img/chat_server_background.jpg) center/cover no-repeat;
+    height: 100vh;
+    background-image: url("@/assets/img/chat_server_background.jpg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
 }
 
-/* 聊天窗口 */
 .chat-window {
-max-width: 1000px;
-width: 90vw;
-max-height: 600px;
-height: 80vh;
-margin: auto;
-position: relative;
-background-color: #fff;
-border-radius: var(--radius-lg);
-overflow: hidden;
+    background-color: rgb(255, 255, 255);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    position: fixed;
+    width: 1000px;
+    height: 600px;
+    border-radius: 30px;
 }
 
 .chat-window-container {
-height: 100%;
-border-radius: var(--radius-lg);
-overflow: hidden;
+    height: 100%;
+    border-radius: 30px;
 }
 
-/* 左侧栏 */
 .aside-container {
-width: 30%;
-border-right: 3px solid var(--color-border);
-display: flex;
-flex-direction: column;
+    width: 30%;
+    border-right: 3px solid #ccc;
+    display: flex;
+    flex-direction: row;
 }
 
-/* 头部、中部、底部 */
 .el-header {
-height: 8%;
+    height: 8%;
 }
 
 .main-container {
-height: 62%;
-padding: 0;
-border-top: 3px solid var(--color-border);
+    padding: 0;
+    border-top: 3px solid #ccc;
+    height: 62%;
 }
 
 .el-footer {
-height: 30%;
-padding: 0;
-border-top: 3px solid var(--color-border);
-display: flex;
-flex-direction: row;
+    padding: 0;
+    border-top: 3px solid #ccc;
+    height: 30%;
+    display: flex;
+    flex-direction: row;
 }
 
-/* 导航栏 */
 .navigation-bar {
-width: 25%;
-height: 100%;
-background-color: var(--color-main-bg);
-border-top-left-radius: var(--radius-lg);
-border-bottom-left-radius: var(--radius-lg);
+    border-top-left-radius: 30px;
+    border-bottom-left-radius: 30px;
+    background-color: rgb(252, 210.9, 210.9);
+    width: 25%;
+    height: 100%;
 }
 
-/* 侧栏内部布局 */
 .up-bar {
-height: 13%;
-display: flex;
-flex-direction: column;
+    height: 13%;
+    display: flex;
+    flex-direction: column;
 }
 
 .middle-bar {
-height: 57%;
-display: flex;
-flex-direction: column;
+    height: 57%;
+    display: flex;
+    flex-direction: column;
 }
 
 .down-bar {
-height: 30%;
-display: flex;
-flex-direction: column-reverse;
+    height: 30%;
+    display: flex;
+    flex-direction: column-reverse;
 }
 
 .contactlist-container {
-width: 74%;
-height: 100%;
+    height: 100%;
+    width: 74%;
 }
 
-/* 标题与字体 */
 .chat-name {
-width: 50%;
-height: 100%;
-display: flex;
-align-items: center;
-font-family: "阿里妈妈数黑体 Bold", "PingFang SC", "Microsoft YaHei", sans-serif;
-color: #4e4e4e;
+    font-family: "阿里妈妈数黑体 Bold";
+    display: flex;
+    align-items: center;
+    color: #4e4e4e;
+    width: 50%;
+    height: 100%;
 }
 
-/* 聊天区 */
-.chat-screen {
-height: 90%;
-}
-
-/* 输入区 */
 .chat-input {
-width: 90%;
-resize: none;
+    width: 90%;
+    resize: none;
 }
 
-/* 工具栏 */
+.chat-screen {
+    height: 90%;
+}
+
 .tool-bar {
-height: 10%;
-background-color: var(--color-main-bg);
-display: flex;
-flex-direction: row;
-}
-
-.tool-bar-left,
-.tool-bar-right {
-width: 50%;
-height: 100%;
-display: flex;
+    height: 10%;
+    background-color: rgb(252, 210.9, 210.9);
+    display: flex;
+    flex-direction: row;
 }
 
 .tool-bar-left {
-flex-direction: row;
+    height: 100%;
+    width: 50%;
+    display: flex;
+    flex-direction: row;
 }
 
 .tool-bar-right {
-flex-direction: row-reverse;
-}
-
-/* 发送与编辑按钮 */
-.send-btn,
-.edit-btn {
-width: 100%;
-background-color: var(--color-main-bg);
-border-bottom-right-radius: var(--radius-lg);
-cursor: pointer;
+    height: 100%;
+    width: 50%;
+    display: flex;
+    flex-direction: row-reverse;
 }
 
 .send-btn {
-height: 20%;
+    height: 20%;
+    width: 100%;
+    background-color: rgb(252, 210.9, 210.9);
+    border-bottom-right-radius: 30px;
 }
 
-.edit-btn {
-height: 8%;
-}
-
-/* 发送区域布局 */
 .chat-send {
-width: 10%;
-height: 100%;
-display: flex;
-flex-direction: column-reverse;
-}
-
-/* 图标按钮 */
-.image-button,
-.icon-btn,
-.avatar-btn {
-background: transparent;
-border: none;
-cursor: pointer;
-display: flex;
-justify-content: center;
-align-items: center;
+    display: flex;
+    flex-direction: column-reverse;
+    width: 10%;
+    height: 100%;
 }
 
 .image-button {
-width: 12%;
-height: 100%;
+    background-color: rgba(255, 255, 255, 0);
+    /*透明*/
+    border: none;
+    /*去除边框*/
+    cursor: pointer;
+    height: 100%;
+    width: 12%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .icon-btn {
-width: 74px;
-height: 40px;
+    background-color: rgba(255, 255, 255, 0);
+    /*透明*/
+    border: none;
+    /*去除边框*/
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+    width: 74px;
 }
 
 .avatar-btn {
-width: 100%;
-height: 100%;
+    background-color: rgba(0, 0, 0, 0);
+    /*透明*/
+    border: none;
+    /*去除边框*/
+    cursor: pointer;
+    display: flex;
+    height: 100%;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
 }
 
-/* 小图标尺寸 */
 .record-icon,
 .upload-icon,
 .sticker-icon,
 .copy-icon,
 .av-icon {
-width: 15px;
-height: 15px;
+    width: 15px;
+    height: 15px;
 }
 
-/* 自定义弹出框 */
+.edit-btn {
+    height: 8%;
+    width: 100%;
+    background-color: rgb(252, 210.9, 210.9);
+    border-bottom-right-radius: 30px;
+}
+
 .el-popper.is-customized {
-padding: 6px 12px;
-background: rgb(250, 183, 183);
+    /* Set padding to ensure the height is 32px */
+    padding: 6px 12px;
+    /*background: linear-gradient(90deg, rgb(244, 154, 162), rgb(250, 193, 211));*/
+    background: rgb(250, 183, 183);
 }
 
 .el-popper.is-customized .el-popper__arrow::before {
-background: rgb(250, 183, 183);
+    /*background: rgb(244, 154, 162);*/
+    background: rgb(250, 183, 183);
 }
 
-/* 模态框关闭按钮 */
+
 .modal-close-btn {
-background-color: var(--color-main-bg);
-border-radius: 6px;
+    background-color: rgb(252, 210.9, 210.9);
+    border-radius: 6px;
 }
+

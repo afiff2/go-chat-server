@@ -116,6 +116,11 @@ func (m *messageService) UploadAvatar(c *gin.Context) (string, int) {
 		ext := filepath.Ext(fileHeader.Filename)
 		zlog.Info(ext)
 		localFileName := config.GetConfig().StaticSrc.StaticAvatarPath + "/" + fileHeader.Filename
+		// 确保父目录存在
+		if err := os.MkdirAll(filepath.Dir(localFileName), os.ModePerm); err != nil {
+			zlog.Error("创建上传目录失败：", zap.Error(err))
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
 		out, err := os.Create(localFileName)
 		if err != nil {
 			zlog.Error(err.Error())
@@ -150,6 +155,11 @@ func (m *messageService) UploadFile(c *gin.Context) (string, int) {
 		ext := filepath.Ext(fileHeader.Filename)
 		zlog.Info(ext)
 		localFileName := config.GetConfig().StaticSrc.StaticFilePath + "/" + fileHeader.Filename
+		// 确保父目录存在
+		if err := os.MkdirAll(filepath.Dir(localFileName), os.ModePerm); err != nil {
+			zlog.Error("创建上传目录失败：", zap.Error(err))
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
 		out, err := os.Create(localFileName)
 		if err != nil {
 			zlog.Error(err.Error())

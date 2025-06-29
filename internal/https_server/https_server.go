@@ -1,6 +1,8 @@
 package https_server
 
 import (
+	"time"
+
 	v1 "github.com/afiff2/go-chat-server/api"
 	"github.com/afiff2/go-chat-server/internal/config"
 	"github.com/gin-contrib/cors"
@@ -17,6 +19,7 @@ func init() {
 		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders: []string{"Content-Length"},
+		MaxAge:        12 * time.Hour, // 预检结果缓存 12 小时
 	}))
 
 	GinEngine.Static("/static/avatars", config.GetConfig().StaticSrc.StaticAvatarPath) // 映射头像目录
