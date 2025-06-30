@@ -49,7 +49,7 @@ func (u *userContactService) GetUserList(ownerId string) (string, []respond.MyUs
 				"u.nickname AS user_name, "+
 				"u.avatar   AS avatar").
 			Joins("INNER JOIN user_info AS u ON u.uuid = user_contact.contact_id").
-			Where("user_contact.user_id = ? AND user_contact.status != ? AND user_contact.contact_type = ?", ownerId, 4, contact_type_enum.USER).
+			Where("user_contact.user_id = ? AND user_contact.contact_type = ?", ownerId, contact_type_enum.USER).
 			Order("user_contact.created_at DESC").
 			Scan(&userList).Error
 		//Scan没有查到不会返回错误
@@ -87,7 +87,7 @@ func (u *userContactService) LoadMyJoinedGroup(ownerId string) (string, []respon
 			Model(&model.UserContact{}).
 			Select("g.uuid AS group_id, g.name AS group_name, g.avatar").
 			Joins("JOIN group_info AS g ON user_contact.contact_id = g.uuid").
-			Where("user_contact.user_id = ? AND user_contact.status NOT IN (6, 7, 8)", ownerId).
+			Where("user_contact.user_id = ? AND g.status = ?", ownerId, group_status_enum.NORMAL).
 			Order("user_contact.created_at DESC").
 			Scan(&groupList).Error
 		if err != nil {
@@ -218,16 +218,7 @@ func (u *userContactService) DeleteContact(ownerId, contactId string) (string, i
 		}
 	}()
 
-	// 删除 owner -> contact 关系（软删除 + 状态更新）
-	if err := tx.Model(&model.UserContact{}).
-		Where("user_id = ? AND contact_id = ?", ownerId, contactId).
-		Updates(map[string]interface{}{
-			"status": contact_status_enum.DELETE,
-		}).Error; err != nil {
-		tx.Rollback()
-		zlog.Error("删除联系人失败 owner -> contact", zap.Error(err))
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
+	// 删除 owner -> contact 关系
 	if err := tx.Where("user_id = ? AND contact_id = ?", ownerId, contactId).
 		Delete(&model.UserContact{}).Error; err != nil {
 		tx.Rollback()
@@ -236,15 +227,6 @@ func (u *userContactService) DeleteContact(ownerId, contactId string) (string, i
 	}
 
 	// 删除 contact -> owner 关系
-	if err := tx.Model(&model.UserContact{}).
-		Where("user_id = ? AND contact_id = ?", contactId, ownerId).
-		Updates(map[string]interface{}{
-			"status": contact_status_enum.BE_DELETE,
-		}).Error; err != nil {
-		tx.Rollback()
-		zlog.Error("删除联系人失败 contact -> owner", zap.Error(err))
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
 	if err := tx.Where("user_id = ? AND contact_id = ?", contactId, ownerId).
 		Delete(&model.UserContact{}).Error; err != nil {
 		tx.Rollback()

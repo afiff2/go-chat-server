@@ -182,7 +182,7 @@ func (g *groupInfoService) LoadMyGroup(ownerId string) (string, []respond.LoadMy
 			zlog.Warn("contact_mygroup_list 读取发生错误，回库读取", zap.Error(err), zap.String("key", cacheKey))
 		}
 		var groupList []model.GroupInfo
-		if res := dao.GormDB.Order("created_at DESC").Where("owner_id = ?", ownerId).Find(&groupList); res.Error != nil {
+		if res := dao.GormDB.Order("created_at DESC").Where("owner_id = ? AND status = ?", ownerId, group_status_enum.NORMAL).Find(&groupList); res.Error != nil {
 			zlog.Error(res.Error.Error())
 			return constants.SYSTEM_ERROR, nil, constants.BizCodeError
 		}
@@ -392,16 +392,7 @@ func (g *groupInfoService) LeaveGroup(userId string, groupId string) (string, in
 		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
-	// 删除联系人（软删 + 更新状态）
-	if res := tx.Model(&model.UserContact{}).
-		Where("user_id = ? AND contact_id = ?", userId, groupId).
-		Updates(map[string]interface{}{
-			"status": contact_status_enum.QUIT_GROUP, // 退群
-		}); res.Error != nil {
-		zlog.Error(res.Error.Error())
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
+	// 删除联系人
 	if res := tx.Where("user_id = ? AND contact_id = ?", userId, groupId).
 		Delete(&model.UserContact{}); res.Error != nil {
 		zlog.Error(res.Error.Error())
@@ -868,15 +859,6 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 
 	// 如果禁用群聊，批量删除会话记录
 	if status == group_status_enum.DISABLE {
-		//更新 UserContact 的状态为“群已禁用”
-		if res := tx.Model(&model.UserContact{}).
-			Where("contact_type = ? AND contact_id IN ?", contact_type_enum.GROUP, uuidList).
-			Update("status", contact_status_enum.GROUP_DISABLED); res.Error != nil {
-			zlog.Error("更新联系人状态失败", zap.Error(res.Error))
-			tx.Rollback()
-			return constants.SYSTEM_ERROR, constants.BizCodeError
-		}
-
 		if res := tx.Where("receive_id IN ?", uuidList).
 			Delete(&model.Session{}); res.Error != nil {
 			zlog.Error("批量删除会话失败", zap.Error(res.Error))
@@ -897,6 +879,12 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 	if status == group_status_enum.DISABLE {
 		if err := myredis.DelKeysByUUIDList("contact_info", uuidList); err != nil {
 			zlog.Warn("删除contact_info缓存失败", zap.Error(err))
+		}
+		if err := myredis.DelKeysByUUIDList("my_joined_group_list", uuidList); err != nil {
+			zlog.Warn("删除my_joined_group_list缓存失败", zap.Error(err))
+		}
+		if err := myredis.DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
+			zlog.Warn("删除contact_mygroup_list缓存失败", zap.Error(err))
 		}
 	}
 

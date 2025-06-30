@@ -4,16 +4,11 @@
 config.go 的defaultPath
 前端的store
 
-[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
-
 # 启动 Zookeeper
 bin/zookeeper-server-start.sh config/zookeeper.properties
 
 # 新开终端，启动 Kafka
 bin/kafka-server-start.sh config/server.properties
-
-Kafka中消费者数量应该<=partition数量，最好等于
-Broker 数量应 ≥ ReplicationFactor（副本因子）
 
 
 Redis表
@@ -35,3 +30,6 @@ contact_info_  + contactId // 联系人/群信息（类似user_info,gourp_info�
 //跟换topic设置时先手动删除原来的
 多个sql操作加入事务（先查状态，再插入 / 删除。并发情况下很容易出现 读到旧快照、重复插入或删错数据。）
 在更新前始终读数据库（MySQL），绕过缓存；写操作完成后，再按“先删缓存后删＋延迟删”或“先更新数据库＋再写新缓存”的策略来刷新缓存。
+
+ToDO:
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
