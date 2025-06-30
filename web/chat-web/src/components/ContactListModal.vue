@@ -177,7 +177,7 @@
                     </el-radio-group>
                   </el-form-item>
                   <el-form-item prop="avatar" label="群头像">
-                    <el-upload ref="uploadRef" v-model:file-list="data.fileList" :auto-upload="false" :action="uploadPath"
+                    <el-upload ref="uploadRef" v-model:file-list="fileList" :auto-upload="false" :action="uploadPath"
                       :on-success="handleUploadSuccess" :before-upload="beforeFileUpload">
                       <template #trigger>
                         <el-button style="background-color: rgb(252, 210.9, 210.9)">上传图片</el-button>
@@ -328,7 +328,7 @@ export default {
       },
       newContactList: [],
       applyContent: "",
-      uploadPath: store.state.backendUrl + "/message/uploadAvatar",
+      uploadPath: store.state.backendUrl + "/message/upload-avatar",
       fileList: [],
       cnt: 0,
     });
