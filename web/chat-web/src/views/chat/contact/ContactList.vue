@@ -173,7 +173,7 @@
                 type="textarea"
                 show-word-limit
                 maxlength="500"
-                :autosize="{ minRows: 7.9, maxRows: 7 }"
+                :autosize="{ minRows: 2, maxRows: 7 }"
                 placeholder="请输入内容"
               />
             </div>

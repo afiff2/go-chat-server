@@ -12,8 +12,10 @@
     left: 50%;
     transform: translate(-50%, -50%);
     position: fixed;
-    width: 1000px;
-    height: 600px;
+    width: 90vw;
+    max-width: 1200px;
+    height: 80vh;
+    max-height: 800px;
     border-radius: 30px;
 }
 
