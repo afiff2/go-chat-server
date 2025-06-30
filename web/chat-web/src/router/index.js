@@ -21,11 +21,11 @@ const routes = [
     name: 'OwnInfo',
     component: () => import('../views/chat/user/OwnInfo.vue')
   },
-  // {
-  //   path: '/chat/contactlist',
-  //   name: 'ContactList',
-  //   component: () => import('../views/chat/contact/ContactList.vue')
-  // },
+  {
+    path: '/chat/contactlist',
+    name: 'ContactList',
+    component: () => import('../views/chat/contact/ContactList.vue')
+  },
   // {
   //   path: '/chat/:id',
   //   name: 'ContactChat',

@@ -521,7 +521,7 @@ export default {
       try {
         data.ownListReq.owner_id = userInfo.value.uuid;
         const loadMyJoinedGroupRsp = await axios.post(
-          store.state.backendUrl + "/contact/load-joined",
+          store.state.backendUrl + "/group/load-joined",
           data.ownListReq
         );
         if (loadMyJoinedGroupRsp.data.data) {

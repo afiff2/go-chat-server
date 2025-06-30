@@ -9,61 +9,7 @@
       <el-container class="chat-window-container">
         <el-aside class="aside-container">
           <NavigationModal></NavigationModal>
-          <div class="sessionlist-container">
-            <div class="sessionlist-header">
-              <el-input
-                v-model="contactSearch"
-                class="contact-search-input"
-                placeholder="搜索会话"
-                size="small"
-                suffix-icon="Search"
-              />
-            </div>
-            <div class="contactlist-body">
-              <div class="contactlist-user">
-                <el-menu
-                  router
-                  unique-opened
-                  @open="handleShowUserSessionList"
-                  @close="handleHideUserSessionList"
-                >
-                  <el-sub-menu index="1">
-                    <template #title>
-                      <span class="sessionlist-title">用户</span>
-                    </template>
-                  </el-sub-menu>
-                  <el-menu-item
-                    v-for="user in userSessionList"
-                    :key="user.user_id"
-                    @click="handleToChatUser(user)"
-                  >
-                    <img :src="user.avatar" class="sessionlist-avatar" />
-                    {{ user.user_name }}
-                  </el-menu-item>
-                </el-menu>
-                <el-menu
-                  router
-                  unique-opened
-                  @open="handleShowGroupSessionList"
-                  @close="handleHideGroupSessionList"
-                >
-                  <el-sub-menu index="1">
-                    <template #title>
-                      <span class="sessionlist-title">群聊</span>
-                    </template>
-                  </el-sub-menu>
-                  <el-menu-item
-                    v-for="group in groupSessionList"
-                    :key="group.group_id"
-                    @click="handleToChatGroup(group)"
-                  >
-                    <img :src="group.avatar" class="sessionlist-avatar" />
-                    {{ group.group_name }}
-                  </el-menu-item>
-                </el-menu>
-              </div>
-            </div>
-          </div>
+          <ContactListModal></ContactListModal>
         </el-aside>
         <el-container class="chat-container">
           <el-header>
@@ -242,127 +188,71 @@
 </template>
 
 <script>
-import { reactive, toRefs, computed} from "vue";
-import { onBeforeRouteUpdate, useRouter } from "vue-router";
-import { ElMessageBox, ElMessage } from "element-plus";
-import { useStore } from "vuex";
-import axios from "axios";
+import { reactive, toRefs } from "vue";
+import ContactListModal from "@/components/ContactListModal.vue";
 import NavigationModal from "@/components/NavigationModal.vue";
 export default {
-  name: "SessionList",
+  name: "ContactList",
   components: {
+    ContactListModal,
     NavigationModal,
   },
-
   setup() {
-    const router = useRouter();
-    const store = useStore();
-    //直接放到 reactive 里可能会来不及更新
-    const userInfo = computed(() => store.state.userInfo);
     const data = reactive({
       chatMessage: "",
-      chatName: "",
-      contactSearch: "",
-      createGroupReq: {
-        owner_id: "",
-        name: "",
-        notice: "",
-        add_mode: null,
-        avatar: "",
-      },
-      ownListReq: {
-        owner_id: "",
-      },
-      userSessionList: [],
-      groupSessionList: [],
     });
-    const handleToChatUser = (user) => {
-      router.push({ name: "ContactChat", params: { id: user.user_id } });
-    };
-    const handleToChatGroup = (group) => {
-      router.push({ name: "ContactChat", params: { id: group.group_id } });
-    };
 
-    const handleShowUserSessionList = async () => {
-      try {
-        data.ownListReq.owner_id = userInfo.value.uuid;
-        const userSessionListRsp = await axios.post(
-          store.state.backendUrl + "/session/user-list",
-          data.ownListReq
-        );
-        if (userSessionListRsp.data.data) {
-          for (let i = 0; i < userSessionListRsp.data.data.length; i++) {
-            if (!userSessionListRsp.data.data[i].avatar.startsWith("http")) {
-              userSessionListRsp.data.data[i].avatar =
-                store.state.backendUrl + userSessionListRsp.data.data[i].avatar;
-            }
-          }
-        }
-        data.userSessionList = userSessionListRsp.data.data;
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    const handleHideUserSessionList = () => {
-      data.userSessionList = [];
-    };
-    const handleShowGroupSessionList = async () => {
-      try {
-        data.ownListReq.owner_id = userInfo.value.uuid;
-        const groupSessionListRsp = await axios.post(
-          store.state.backendUrl + "/session/group-list",
-          data.ownListReq
-        );
-        if (groupSessionListRsp.data.data) {
-          for (let i = 0; i < groupSessionListRsp.data.data.length; i++) {
-            if (!groupSessionListRsp.data.data[i].avatar.startsWith("http")) {
-              groupSessionListRsp.data.data[i].avatar =
-                store.state.backendUrl + groupSessionListRsp.data.data[i].avatar;
-            }
-          }
-        }
-        data.groupSessionList = groupSessionListRsp.data.data;
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    const handleHideGroupSessionList = () => {
-      data.groupSessionList = [];
-    };
     return {
       ...toRefs(data),
-      router,
-      userInfo,
-      handleToChatUser,
-      handleToChatGroup,
-      handleShowUserSessionList,
-      handleHideUserSessionList,
-      handleShowGroupSessionList,
-      handleHideGroupSessionList,
     };
   },
 };
 </script>
 
 <style scoped>
-.sessionlist-header {
+.contactlist-header {
   display: flex;
   flex-direction: row;
-  width: 100%;
   margin-top: 10px;
   margin-bottom: 10px;
 }
 
 .contact-search-input {
-  width: 215px;
+  width: 185px;
   height: 30px;
   margin-left: 5px;
-  margin-right: 2px;
+  margin-right: 5px;
+}
+
+.contactlist-header-right {
+  width: 40px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.create-group-btn {
+  background-color: rgb(252, 210.9, 210.9);
+  cursor: pointer;
+  border: none;
+  height: 100%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.create-group-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .el-menu {
   background-color: rgb(252, 210.9, 210.9);
-  width: 100%;
+  width: 101%;
 }
 
 .el-menu-item {
@@ -370,7 +260,7 @@ export default {
   height: 45px;
 }
 
-.sessionlist-title {
+.contactlist-user-title {
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -409,7 +299,28 @@ h3 {
 
 .modal-body {
   height: 55%;
-  width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.newcontact-modal-body {
+  height: 70%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.newcontact-modal-footer {
+  height: 10%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .modal-footer {
@@ -428,9 +339,55 @@ h3 {
   align-items: center;
 }
 
-.sessionlist-avatar {
+.contactlist-avatar {
   width: 30px;
   height: 30px;
+  margin-right: 20px;
+}
+
+.newcontact-list {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.newcontact-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+}
+
+.action-btn {
+  background-color: rgb(252, 210.9, 210.9);
+  border: none;
+  cursor: pointer;
+  justify-content: center;
+  align-items: center;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.contactlist-user-menu-item {
+  justify-content: center;
+  align-items: center;
+}
+
+.contactlist-user-item {
+  width: 221px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  color: rgba(43, 42, 42, 0.893);
+}
+
+.contactlist-user-avatar {
+  width: 30px;
+  height: 30px;
+  margin-left: 20px;
   margin-right: 20px;
 }
 </style>
