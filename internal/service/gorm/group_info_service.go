@@ -880,12 +880,13 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 		if err := myredis.DelKeysByUUIDList("contact_info", uuidList); err != nil {
 			zlog.Warn("删除contact_info缓存失败", zap.Error(err))
 		}
-		if err := myredis.DelKeysByUUIDList("my_joined_group_list", uuidList); err != nil {
-			zlog.Warn("删除my_joined_group_list缓存失败", zap.Error(err))
-		}
-		if err := myredis.DelKeysByUUIDList("contact_mygroup_list", uuidList); err != nil {
-			zlog.Warn("删除contact_mygroup_list缓存失败", zap.Error(err))
-		}
+	}
+
+	if err := myredis.DelKeysWithPrefix("my_joined_group_list"); err != nil {
+		zlog.Error(err.Error())
+	}
+	if err := myredis.DelKeysWithPrefix("contact_mygroup_list"); err != nil {
+		zlog.Error(err.Error())
 	}
 
 	// group_session_list简单，内部不会修改
