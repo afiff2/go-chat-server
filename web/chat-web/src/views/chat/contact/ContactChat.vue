@@ -1051,6 +1051,7 @@ export default {
       try {
         const req = {
           owner_id: userInfo.value.uuid,
+          receive_id: data.contactInfo.contact_id,
           session_id: data.sessionId,
         };
         const rsp = await axios.post(

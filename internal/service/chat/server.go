@@ -76,13 +76,13 @@ func (k *KafkaServer) Start(ctx context.Context) {
 				time.Sleep(100 * time.Millisecond) //防止busy loop，Kafka 短暂不可用、不断抛错
 				continue
 			}
-			zlog.Info(fmt.Sprintf("topic=%s, partition=%d, offset=%d, key=%s, value=%s", kafkaMessage.Topic, kafkaMessage.Partition, kafkaMessage.Offset, kafkaMessage.Key, kafkaMessage.Value))
+			zlog.Debug(fmt.Sprintf("topic=%s, partition=%d, offset=%d, key=%s, value=%s", kafkaMessage.Topic, kafkaMessage.Partition, kafkaMessage.Offset, kafkaMessage.Key, kafkaMessage.Value))
 			data := kafkaMessage.Value
 			var chatMessageReq request.ChatMessageRequest
 			if err := json.Unmarshal(data, &chatMessageReq); err != nil {
 				zlog.Error(err.Error())
 			}
-			zlog.Info(fmt.Sprintf("原消息为：%v, 反序列化后为：%v", data, chatMessageReq))
+			zlog.Debug(fmt.Sprintf("原消息为：%v, 反序列化后为：%v", data, chatMessageReq))
 			switch chatMessageReq.Type {
 			case message_type_enum.Text:
 				// 存message
