@@ -1,4 +1,5 @@
 # 必需修改的常量
+创建go-chat-server;
 [mysqlConfig] socket
 [log] path
 config.go 的defaultPath

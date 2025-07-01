@@ -247,4 +247,8 @@ export default {
   width: 20px;
   margin-right: 10px;
 }
+
+.manager-main-container {
+  height: 100%;
+}
 </style>

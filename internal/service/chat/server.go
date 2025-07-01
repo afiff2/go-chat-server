@@ -53,6 +53,7 @@ func init() {
 }
 
 func (k *KafkaServer) Start(ctx context.Context) {
+	zlog.Info("进入 KafkaServer.Start，开始消费 chat_message topic")
 	// read chat message
 	defer func() {
 		if r := recover(); r != nil {
