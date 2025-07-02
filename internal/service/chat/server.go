@@ -128,7 +128,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 					if err != nil {
 						zlog.Error(err.Error())
 					}
-					zlog.Info(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
+					zlog.Debug(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
 					var messageBack = &MessageBack{
 						Message: jsonMessage,
 						Uuid:    message.Uuid,
@@ -159,7 +159,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 					if err != nil {
 						zlog.Error(err.Error())
 					}
-					zlog.Info(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
+					zlog.Debug(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
 					var messageBack = &MessageBack{
 						Message: jsonMessage,
 						Uuid:    message.Uuid,
@@ -232,7 +232,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 					if err != nil {
 						zlog.Error(err.Error())
 					}
-					zlog.Info(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
+					zlog.Debug(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
 					var messageBack = &MessageBack{
 						Message: jsonMessage,
 						Uuid:    message.Uuid,
@@ -267,7 +267,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 					if err != nil {
 						zlog.Error(err.Error())
 					}
-					zlog.Info(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
+					zlog.Debug(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
 					var messageBack = &MessageBack{
 						Message: jsonMessage,
 						Uuid:    message.Uuid,
@@ -351,7 +351,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 					if err != nil {
 						zlog.Error(err.Error())
 					}
-					zlog.Info(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
+					zlog.Debug(fmt.Sprintf("返回的消息为：%v, 序列化后为：%v", messageRsp, jsonMessage))
 					var messageBack = &MessageBack{
 						Message: jsonMessage,
 						Uuid:    message.Uuid,

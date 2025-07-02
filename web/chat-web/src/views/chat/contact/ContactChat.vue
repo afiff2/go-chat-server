@@ -1327,12 +1327,12 @@ export default {
       console.log(data.fileList);
       console.log(file);
       if (data.fileList.length > 1) {
-        ElMessage.error("只能上传一张头像");
+        ElMessage.error("只能上传一个文件");
         return false;
       }
       const isLt50M = file.size / 1024 / 1024 < 50;
       if (!isLt50M) {
-        ElMessage.error("上传头像图片大小不能超过 50MB!");
+        ElMessage.error("上传文件大小不能超过 50MB!");
         return false;
       }
     };

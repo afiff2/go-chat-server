@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-
+import fs from 'fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
@@ -17,6 +17,10 @@ export default defineConfig({
     // 可以打开下面一行，禁止 Host 校验（有安全风险，仅开发时用）
     // cors: true,
     // disableHostCheck: true
+    https: {
+      key: fs.readFileSync('/root/Project/go-chat-server/certs/server.key'),
+      cert: fs.readFileSync('/root/Project/go-chat-server/certs/server.crt'),
+    },
   },
   resolve: {
     alias: {

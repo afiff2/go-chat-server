@@ -41,7 +41,9 @@ func main() {
 
 	go func() {
 		zlog.Info("HTTP 服务启动", zap.String("addr", srv.Addr))
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		certFile := config.GetConfig().Server.CertFile
+		keyFile := config.GetConfig().Server.KeyFile
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 			zlog.Fatal("HTTP 服务异常退出", zap.Error(err))
 		}
 	}()

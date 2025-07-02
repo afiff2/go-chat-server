@@ -18,8 +18,10 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host string `toml:"host"`
-	Port int    `toml:"port"`
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	CertFile string `toml:"certFile"` // PEM 格式公钥证书
+	KeyFile  string `toml:"keyFile"`  // PEM 格式私钥
 }
 
 type LogConfig struct {

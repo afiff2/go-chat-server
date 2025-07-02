@@ -35,3 +35,25 @@ contact_info_  + contactId // 联系人/群信息（类似user_info,gourp_info�
 ToDO:
 [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
 vue的界面很奇怪
+
+## TLS 证书 (HTTPS) 配置
+
+项目使用 HTTPS 提供安全的媒体流和 API 调用，需自行准备证书和私钥：
+
+1. 在项目根目录下创建一个 `certs/` 文件夹（已在 `.gitignore` 中忽略，确保不会被提交到仓库）：  
+   ```bash
+   mkdir certs
+2. 将你的证书和私钥文件放到这个目录下，命名示例：
+certs/
+├── server.crt   # 公钥证书（PEM 格式）
+└── server.key   # 私钥（PEM 格式）
+（可选）本地开发自签证书快速生成命令：
+openssl req -x509 -newkey rsa:4096 \
+  -nodes -keyout certs/server.key \
+  -out certs/server.crt \
+  -days 365 \
+  -subj "/CN=localhost"
+3. 在 config.yml（或代码中）指定证书路径，例如：
+tls:
+  cert_file: "./certs/server.crt"
+  key_file:  "./certs/server.key"
