@@ -10,8 +10,8 @@
         effect="customized"
         content="会话聊天"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn" @click="handleToSessionList">
           <el-icon>
@@ -23,8 +23,8 @@
         effect="customized"
         content="通讯录管理"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn" @click="handleToContactList">
           <el-icon>
@@ -36,8 +36,8 @@
         effect="customized"
         content="朋友圈"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn">
           <el-icon>
@@ -49,8 +49,8 @@
         effect="customized"
         content="我的收藏"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn">
           <el-icon>
@@ -62,8 +62,8 @@
         effect="customized"
         content="搜索"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn">
           <el-icon>
@@ -77,8 +77,8 @@
         effect="customized"
         content="设置"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <el-dropdown trigger="click" placement="right">
           <button class="icon-btn">
@@ -103,8 +103,8 @@
         effect="customized"
         content="我的主页"
         placement="left"
-        hide-after="0"
-        enterable="false"
+        :hide-after="0"
+        :enterable="false"
       >
         <button class="icon-btn" @click="handleToOwnInfo">
           <el-icon><HomeFilled /></el-icon>

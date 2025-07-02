@@ -33,6 +33,7 @@
                     </template>
                   </el-sub-menu>
                   <el-menu-item
+                    index="SL-1"
                     v-for="user in userSessionList"
                     :key="user.user_id"
                     @click="handleToChatUser(user)"
@@ -53,6 +54,7 @@
                     </template>
                   </el-sub-menu>
                   <el-menu-item
+                    index="SL-2"
                     v-for="group in groupSessionList"
                     :key="group.group_id"
                     @click="handleToChatGroup(group)"
@@ -77,8 +79,8 @@
                   effect="customized"
                   content="表情包"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -103,8 +105,8 @@
                   effect="customized"
                   content="文件上传"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -134,8 +136,8 @@
                   effect="customized"
                   content="聊天记录"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -167,8 +169,8 @@
                   effect="customized"
                   content="全文复制"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -195,8 +197,8 @@
                   effect="customized"
                   content="音视频通话"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg

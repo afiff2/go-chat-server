@@ -23,8 +23,8 @@
                   effect="customized"
                   content="表情包"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -49,8 +49,8 @@
                   effect="customized"
                   content="文件上传"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -80,8 +80,8 @@
                   effect="customized"
                   content="聊天记录"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -113,8 +113,8 @@
                   effect="customized"
                   content="全文复制"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg
@@ -141,8 +141,8 @@
                   effect="customized"
                   content="音视频通话"
                   placement="top"
-                  hide-after="0"
-                  enterable="false"
+                  :hide-after="0"
+                  :enterable="false"
                 >
                   <button class="image-button">
                     <svg

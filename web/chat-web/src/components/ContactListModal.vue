@@ -54,8 +54,8 @@
                       ">
                       <img :src="newContact.contact_avatar" style="width: 30px; height: 30px; margin-right: 10px" />
 
-                      <el-tooltip effect="customized" :content="newContact.message" placement="top" hide-after="0"
-                        enterable="false">
+                      <el-tooltip effect="customized" :content="newContact.message" placement="top" :hide-after="0"
+                        :enterable="false">
                         <div>
                           {{ newContact.contact_name }}
                         </div>
@@ -206,7 +206,7 @@
               <span class="contactlist-user-title">联系人</span>
             </template>
           </el-sub-menu>
-          <el-menu-item v-for="user in filteredContactUserList" :key="user.user_id" @click="handleToChatUser(user)"
+          <el-menu-item index="CL-1" v-for="user in filteredContactUserList" :key="user.user_id" @click="handleToChatUser(user)"
             class="contactlist-user-menu-item">
             <el-dropdown trigger="contextmenu" class="contactlist-dropdown" placement="right">
               <div class="contactlist-user-item">
@@ -229,7 +229,7 @@
               <span class="contactlist-user-title">我创建的群聊</span>
             </template>
           </el-sub-menu>
-          <el-menu-item v-for="group in filteredMyGroupList" :key="group.group_id" @click="handleToChatGroup(group)">
+          <el-menu-item index="CL-2" v-for="group in filteredMyGroupList" :key="group.group_id" @click="handleToChatGroup(group)">
             <img :src="group.avatar" class="contactlist-avatar" />
             {{ group.group_name }}
           </el-menu-item>
@@ -240,7 +240,7 @@
               <span class="contactlist-user-title">我加入的群聊</span>
             </template>
           </el-sub-menu>
-          <el-menu-item v-for="group in filteredMyJoinedGroupList" :key="group.group_id" @click="handleToChatGroup(group)">
+          <el-menu-item index="CL-3" v-for="group in filteredMyJoinedGroupList" :key="group.group_id" @click="handleToChatGroup(group)">
             <img :src="group.avatar" class="contactlist-avatar" />
             {{ group.group_name }}
           </el-menu-item>

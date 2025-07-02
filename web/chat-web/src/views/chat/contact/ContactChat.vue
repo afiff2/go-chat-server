@@ -19,7 +19,7 @@
                       <span class="sessionlist-title">用户</span>
                     </template>
                   </el-sub-menu>
-                  <el-menu-item v-for="user in userSessionList" :key="user.user_id" @click="handleToChatUser(user)">
+                  <el-menu-item index="CC-1" v-for="user in userSessionList" :key="user.user_id" @click="handleToChatUser(user)">
                     <img :src="user.avatar" class="sessionlist-avatar" />
                     {{ user.user_name }}
                   </el-menu-item>
@@ -30,7 +30,7 @@
                       <span class="sessionlist-title">群聊</span>
                     </template>
                   </el-sub-menu>
-                  <el-menu-item v-for="group in groupSessionList" :key="group.group_id" @click="handleToChatGroup(group)">
+                  <el-menu-item index="CC-2" v-for="group in groupSessionList" :key="group.group_id" @click="handleToChatGroup(group)">
                     <img :src="group.avatar" class="sessionlist-avatar" />
                     {{ group.group_name }}
                   </el-menu-item>
@@ -322,8 +322,8 @@
                                 margin-right: 10px;
                               " />
 
-                            <el-tooltip effect="customized" :content="addGroup.message" placement="top" hide-after="0"
-                              enterable="false">
+                            <el-tooltip effect="customized" :content="addGroup.message" placement="top" :hide-after="0"
+                              :enterable="false">
                               <div style="color: black">
                                 {{ addGroup.contact_name }}
                               </div>
@@ -510,7 +510,7 @@
             </el-scrollbar>
             <div class="tool-bar">
               <div class="tool-bar-left">
-                <el-tooltip effect="customized" content="表情包" placement="top" hide-after="0" enterable="false">
+                <el-tooltip effect="customized" content="表情包" placement="top" :hide-after="0" :enterable="false">
                   <button class="image-button" @click="
                     downloadFile(backendUrl + '/static/avatars', '头像.jpg')
                     ">
@@ -523,7 +523,7 @@
                   </button>
                 </el-tooltip>
 
-                <el-tooltip effect="customized" content="文件上传" placement="top" hide-after="0" enterable="false">
+                <el-tooltip effect="customized" content="文件上传" placement="top" :hide-after="0" :enterable="false">
                   <button class="image-button">
                     <el-upload v-model:file-list="fileList" ref="uploadRef" :auto-upload="true" :show-file-list="false"
                       :action="uploadPath" :on-success="handleUploadSuccess" :before-upload="beforeFileUpload" style="
@@ -544,7 +544,7 @@
                   </button>
                 </el-tooltip>
 
-                <el-tooltip effect="customized" content="聊天记录" placement="top" hide-after="0" enterable="false">
+                <el-tooltip effect="customized" content="聊天记录" placement="top" :hide-after="0" :enterable="false">
                   <button class="image-button">
                     <svg t="1733504061769" class="record-icon" viewBox="0 0 1024 1024" version="1.1"
                       xmlns="http://www.w3.org/2000/svg" p-id="5492" width="128" height="128">
@@ -560,7 +560,7 @@
                     </svg>
                   </button>
                 </el-tooltip>
-                <el-tooltip effect="customized" content="全文复制" placement="top" hide-after="0" enterable="false">
+                <el-tooltip effect="customized" content="全文复制" placement="top" :hide-after="0" :enterable="false">
                   <button class="image-button">
                     <svg t="1733503137487" class="copy-icon" viewBox="0 0 1024 1024" version="1.1"
                       xmlns="http://www.w3.org/2000/svg" p-id="3442" width="128" height="128">
@@ -572,7 +572,7 @@
                 </el-tooltip>
               </div>
               <div class="tool-bar-right">
-                <el-tooltip effect="customized" content="音视频通话" placement="top" hide-after="0" enterable="false">
+                <el-tooltip effect="customized" content="音视频通话" placement="top" :hide-after="0" :enterable="false">
                   <button class="image-button" @click="showAVContainerModal">
                     <svg t="1733503700535" class="av-icon" viewBox="0 0 1024 1024" version="1.1"
                       xmlns="http://www.w3.org/2000/svg" p-id="4492" width="128" height="128">
