@@ -71,7 +71,7 @@ func getDevEncoderConfig() zapcore.EncoderConfig {
 	cfg.StacktraceKey = "stacktrace"
 	cfg.LineEnding = zapcore.DefaultLineEnding
 	cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder // 带颜色的级别
-	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006/01/02 - 15:04:05")
 	cfg.EncodeDuration = zapcore.StringDurationEncoder // 持续时间转字符串
 	cfg.EncodeCaller = zapcore.ShortCallerEncoder      // 短路径文件名+行号
 	return cfg
@@ -88,7 +88,7 @@ func getProdEncoderConfig() zapcore.EncoderConfig {
 		StacktraceKey:  "stacktrace",
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.LowercaseLevelEncoder, // 小写级别：info/warn/error
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeTime:     zapcore.TimeEncoderOfLayout("2006/01/02 - 15:04:05"),
 		EncodeDuration: zapcore.StringDurationEncoder, // 持续时间转字符串
 		EncodeCaller:   zapcore.ShortCallerEncoder,    // 短路径文件名+行号
 	}

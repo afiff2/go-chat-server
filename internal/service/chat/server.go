@@ -57,7 +57,7 @@ func (k *KafkaServer) Start(ctx context.Context) {
 	// read chat message
 	defer func() {
 		if r := recover(); r != nil {
-			zlog.Error("kafka server panic", zap.Any("panic", r))
+			zlog.Fatal("kafka server panic", zap.Any("panic", r))
 		}
 	}()
 	for {
