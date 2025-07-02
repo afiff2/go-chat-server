@@ -19,7 +19,8 @@
                       <span class="sessionlist-title">用户</span>
                     </template>
                   </el-sub-menu>
-                  <el-menu-item index="CC-1" v-for="user in userSessionList" :key="user.user_id" @click="handleToChatUser(user)">
+                  <el-menu-item index="CC-1" v-for="user in userSessionList" :key="user.user_id"
+                    @click="handleToChatUser(user)">
                     <img :src="user.avatar" class="sessionlist-avatar" />
                     {{ user.user_name }}
                   </el-menu-item>
@@ -30,7 +31,8 @@
                       <span class="sessionlist-title">群聊</span>
                     </template>
                   </el-sub-menu>
-                  <el-menu-item index="CC-2" v-for="group in groupSessionList" :key="group.group_id" @click="handleToChatGroup(group)">
+                  <el-menu-item index="CC-2" v-for="group in groupSessionList" :key="group.group_id"
+                    @click="handleToChatGroup(group)">
                     <img :src="group.avatar" class="sessionlist-avatar" />
                     {{ group.group_name }}
                   </el-menu-item>
@@ -1807,7 +1809,15 @@ export default {
     };
 
     const handleCandidate = (val) => {
-      data.rtcPeerConn.addIceCandidate(new RTCIceCandidate(val));
+      if (!data.rtcPeerConn) {
+        // 连接已经关闭，直接丢弃这条 candidate
+        console.warn('handleCandidate: rtcPeerConn is null, ignoring ICE candidate');
+        return;
+      }
+      data.rtcPeerConn.addIceCandidate(new RTCIceCandidate(val))
+        .catch(err => {
+          console.error('添加远端 ICE candidate 失败:', err);
+        });
     };
 
     const rejectCall = () => {

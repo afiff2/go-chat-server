@@ -54,6 +54,18 @@ openssl req -x509 -newkey rsa:4096 \
   -out certs/server.crt \
   -days 365 \
   -subj "/CN=localhost"
+
+# 生成 P-256 曲线的私钥
+openssl ecparam -genkey -name prime256v1 -out ecdsa.key
+
+# 用私钥创建 CSR
+openssl req -new -key ecdsa.key -out ecdsa.csr \
+  -subj "/CN=localhost"
+
+# 自签 crt
+openssl x509 -req -in ecdsa.csr -signkey ecdsa.key \
+  -out ecdsa.crt -days 365
+
 3. 在 config.yml（或代码中）指定证书路径，例如：
 tls:
   cert_file: "./certs/server.crt"

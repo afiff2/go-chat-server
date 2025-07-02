@@ -1,8 +1,8 @@
 [serverConfig]
 host = "0.0.0.0"
 port = 8080
-certFile = "./certs/server.crt"
-keyFile  = "./certs/server.key"
+certFile = "./certs/ecdsa.crt"
+keyFile  = "./certs/ecdsa.key"
 
 [mysqlConfig]
 user = "root"

@@ -18,8 +18,8 @@ export default defineConfig({
     // cors: true,
     // disableHostCheck: true
     https: {
-      key: fs.readFileSync('/root/Project/go-chat-server/certs/server.key'),
-      cert: fs.readFileSync('/root/Project/go-chat-server/certs/server.crt'),
+      key: fs.readFileSync('/root/Project/go-chat-server/certs/ecdsa.key'),
+      cert: fs.readFileSync('/root/Project/go-chat-server/certs/ecdsa.crt'),
     },
   },
   resolve: {
