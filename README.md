@@ -5,6 +5,7 @@
 config.go 的defaultPath
 前端的store
 vite.config.js的证书路径
+在store里填入iceConfig
 
 # 启动 Zookeeper
 bin/zookeeper-server-start.sh config/zookeeper.properties

@@ -645,6 +645,7 @@ export default {
     const userInfo = computed(() => store.state.userInfo)
     const innerRef = ref(null)
     const scrollbarRef = ref(null)
+    const iceConfig = computed(() => store.state.iceConfig)
     const data = reactive({
       chatMessage: "",
       chatName: "",
@@ -719,7 +720,6 @@ export default {
       isAVContainerModalVisible: false,
       videoPlayer: null,
       rtcPeerConn: null,
-      ICE_CFG: {},
       localStream: null,
       remoteStream: null,
       remoteVideo: null,
@@ -1494,7 +1494,7 @@ export default {
         console.log("peer connection has already been created.");
         return;
       }
-      data.rtcPeerConn = new RTCPeerConnection(data.ICE_CFG);
+      data.rtcPeerConn = new RTCPeerConnection(iceConfig.value);
       data.rtcPeerConn.onicecandidate = (event) => {
         if (event.candidate) {
           var proxyCandidateMessage = {
@@ -1527,6 +1527,7 @@ export default {
           "oniceconnectionstatechange",
           data.rtcPeerConn.iceConnectionState
         );
+        console.log("ICE state:", data.rtcPeerConn.iceConnectionState);
       };
       // 对端传来媒体轨道
       data.rtcPeerConn.ontrack = (event) => {
