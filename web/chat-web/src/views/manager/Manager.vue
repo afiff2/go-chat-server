@@ -17,7 +17,7 @@
           <el-button @click="backToChat">返回</el-button>
         </el-header>
 
-        <el-container>
+        <el-container style="max-height:100%;overflow:auto">
           <el-aside class="manager-aside-container">
             <el-menu unique-opened>
               <el-sub-menu index="1">

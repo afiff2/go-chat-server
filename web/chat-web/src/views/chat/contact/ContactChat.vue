@@ -351,7 +351,7 @@
             </div>
           </el-header>
           <el-main class="main-container">
-            <el-scrollbar max-height="332.5px" style="height: 332.5px" ref="scrollbarRef">
+            <el-scrollbar max-height="332px" style="height: 332px" ref="scrollbarRef">
               <div ref="innerRef">
                 <div v-for="(messageItem, index) in messageList" :key="index" class="message-item">
                   <div v-if="messageItem.send_id != userInfo.uuid &&
@@ -605,10 +605,10 @@
               </div>
             </div>
           </el-main>
-          <el-footer>
+          <el-footer height="160px">
             <div class="chat-input">
               <el-input v-model="chatMessage" type="textarea" show-word-limit maxlength="500"
-                :autosize="{ minRows: 2, maxRows: 7 }" placeholder="请输入内容" />
+                :autosize="{ minRows: 6, maxRows: 6 }" placeholder="请输入内容" />
             </div>
             <div class="chat-send">
               <el-button class="send-btn" @click="sendMessage">发送</el-button>
