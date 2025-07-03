@@ -5,3 +5,5 @@ static/avatars/*
 static/files/*
 
 /certs/
+
+web/chat-web/src/store/index.js
