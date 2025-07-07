@@ -496,6 +496,7 @@ func (g *groupInfoService) DismissGroup(ownerId, groupId string) (string, int) {
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
+	// 删除相关消息
 	if res := tx.Where("receive_id = ?", groupId).Delete(&model.Message{}); res.Error != nil {
 		zlog.Error("删除聊天消息失败", zap.Error(res.Error))
 		tx.Rollback()
@@ -904,39 +905,47 @@ func (g *groupInfoService) SetGroupsStatus(uuidList []string, status int8) (stri
 // UpdateGroupInfo 更新群聊信息
 func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (string, int) {
 	var group model.GroupInfo
-	if res := dao.GormDB.First(&group, "uuid = ?", req.Uuid); res.Error != nil {
-		zlog.Error(res.Error.Error())
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-	if req.Name != "" {
-		group.Name = req.Name
-	}
-	if req.AddMode != -1 {
-		group.AddMode = req.AddMode
-	}
-	if req.Notice != "" {
-		group.Notice = req.Notice
-	}
-	if req.Avatar != "" {
-		group.Avatar = req.Avatar
-	}
-	if res := dao.GormDB.Save(&group); res.Error != nil {
-		zlog.Error(res.Error.Error())
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-	// 修改会话
-	var sessionList []model.Session
-	if res := dao.GormDB.Where("receive_id = ?", req.Uuid).Find(&sessionList); res.Error != nil {
-		zlog.Error(res.Error.Error())
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-	for _, session := range sessionList {
-		session.ReceiveName = group.Name
-		session.Avatar = group.Avatar
-		if res := dao.GormDB.Save(&session); res.Error != nil {
-			zlog.Error(res.Error.Error())
-			return constants.SYSTEM_ERROR, constants.BizCodeError
+	err := dao.GormDB.Transaction(func(tx *gorm.DB) error {
+		// 先查
+		if res := tx.First(&group, "uuid = ?", req.Uuid); res.Error != nil {
+			zlog.Error("查询群组失败", zap.Error(res.Error))
+			return res.Error
 		}
+		// 更新群字段
+		if req.Name != "" {
+			group.Name = req.Name
+		}
+		if req.AddMode != -1 {
+			group.AddMode = req.AddMode
+		}
+		if req.Notice != "" {
+			group.Notice = req.Notice
+		}
+		if req.Avatar != "" {
+			group.Avatar = req.Avatar
+		}
+		if res := tx.Save(&group); res.Error != nil {
+			zlog.Error("保存群信息失败", zap.Error(res.Error))
+			return res.Error
+		}
+
+		// 批量更新对应会话
+		updates := model.Session{
+			ReceiveName: group.Name,
+			Avatar:      group.Avatar,
+		}
+		if res := tx.
+			Model(&model.Session{}).
+			Where("receive_id = ?", req.Uuid).
+			Updates(updates); res.Error != nil {
+			zlog.Error("批量更新会话失败", zap.Error(res.Error))
+			return res.Error
+		}
+
+		return nil // 自动提交
+	})
+	if err != nil {
+		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	// 写入 group_info_{groupId} 缓存
@@ -990,7 +999,7 @@ func (g *groupInfoService) UpdateGroupInfo(req request.UpdateGroupInfoRequest) (
 	return "更新成功", constants.BizCodeSuccess
 }
 
-// GetGroupMemberList 获取群聊成员列表
+// GetGroupMemberList 获取群聊成员列表 (开启事务加重复杂度)
 func (g *groupInfoService) GetGroupMemberList(groupId string) (string, []respond.GetGroupMemberListRespond, int) {
 	cacheKey := "group_memberlist_" + groupId
 	rspString, err := myredis.GetKeyNilIsErr(cacheKey)

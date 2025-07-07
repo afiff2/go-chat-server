@@ -7,12 +7,6 @@ config.go 的defaultPath
 vite.config.js的证书路径
 在store里填入iceConfig
 
-# 启动 Zookeeper
-bin/zookeeper-server-start.sh config/zookeeper.properties
-
-# 新开终端，启动 Kafka
-bin/kafka-server-start.sh config/server.properties
-
 
 Redis表
 user_info_{userId}            //用户信息 ok
@@ -29,14 +23,6 @@ group_messagelist_{groupId} //组中message
 ("group_session_list_" + userId) //（创建会话人id）会话（组）列表 ok
 
 contact_info_  + contactId // 联系人/群信息（类似user_info,gourp_info） (需要没被禁用)！！ok
-
-//跟换topic设置时先手动删除原来的
-多个sql操作加入事务（先查状态，再插入 / 删除。并发情况下很容易出现 读到旧快照、重复插入或删错数据。）
-在更新前始终读数据库（MySQL），绕过缓存；写操作完成后，再按“先删缓存后删＋延迟删”或“先更新数据库＋再写新缓存”的策略来刷新缓存。
-
-ToDO:
-[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
-vue的界面很奇怪
 
 ## TLS 证书 (HTTPS) 配置
 

@@ -34,13 +34,20 @@ func (s *sessionService) CreateSession(req request.OpenSessionRequest) (string, 
 	if req.SendId == req.ReceiveId {
 		return "不能自己和自己建立会话", "", constants.BizCodeInvalid
 	}
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 	var user model.UserInfo
-	if res := dao.GormDB.Where("uuid = ?", req.SendId).First(&user); res.Error != nil {
+	if res := tx.Where("uuid = ?", req.SendId).First(&user); res.Error != nil {
 		zlog.Error(res.Error.Error())
 		return constants.SYSTEM_ERROR, "", constants.BizCodeError
 	}
 	// 校验 SendId 状态
 	if user.Status == user_status_enum.DISABLE {
+		tx.Rollback()
 		return "发送用户被禁用", "", constants.BizCodeInvalid
 	}
 	var session model.Session
@@ -50,12 +57,14 @@ func (s *sessionService) CreateSession(req request.OpenSessionRequest) (string, 
 	session.CreatedAt = time.Now()
 	if req.ReceiveId[0] == 'U' {
 		var receiveUser model.UserInfo
-		if res := dao.GormDB.Where("uuid = ?", req.ReceiveId).First(&receiveUser); res.Error != nil {
+		if res := tx.Where("uuid = ?", req.ReceiveId).First(&receiveUser); res.Error != nil {
 			zlog.Error(res.Error.Error())
+			tx.Rollback()
 			return constants.SYSTEM_ERROR, "", constants.BizCodeError
 		}
 		if receiveUser.Status == user_status_enum.DISABLE {
 			zlog.Error("该用户被禁用了")
+			tx.Rollback()
 			return "该用户被禁用了", "", constants.BizCodeInvalid
 		} else {
 			session.ReceiveName = receiveUser.Nickname
@@ -63,12 +72,14 @@ func (s *sessionService) CreateSession(req request.OpenSessionRequest) (string, 
 		}
 	} else {
 		var receiveGroup model.GroupInfo
-		if res := dao.GormDB.Where("uuid = ?", req.ReceiveId).First(&receiveGroup); res.Error != nil {
+		if res := tx.Where("uuid = ?", req.ReceiveId).First(&receiveGroup); res.Error != nil {
 			zlog.Error(res.Error.Error())
+			tx.Rollback()
 			return constants.SYSTEM_ERROR, "", constants.BizCodeError
 		}
 		if receiveGroup.Status == group_status_enum.DISABLE {
 			zlog.Error("该群聊被禁用了")
+			tx.Rollback()
 			return "该群聊被禁用了", "", constants.BizCodeInvalid
 		} else {
 			session.ReceiveName = receiveGroup.Name
@@ -76,8 +87,14 @@ func (s *sessionService) CreateSession(req request.OpenSessionRequest) (string, 
 		}
 	}
 
-	if res := dao.GormDB.Create(&session); res.Error != nil {
+	if res := tx.Create(&session); res.Error != nil {
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, "", constants.BizCodeError
+	}
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, "", constants.BizCodeError
 	}
 	if err := myredis.SetCache("session_"+req.SendId+"_"+req.ReceiveId, &session); err != nil {
@@ -107,9 +124,10 @@ func (s *sessionService) CheckOpenSessionAllowed(sendId, receiveId string) (stri
 			return constants.SYSTEM_ERROR, false, constants.BizCodeError
 		}
 	}
-	if contact.Status == contact_status_enum.BE_BLACK {
+	switch contact.Status {
+	case contact_status_enum.BE_BLACK:
 		return "已被对方拉黑，无法发起会话", false, constants.BizCodeInvalid
-	} else if contact.Status == contact_status_enum.BLACK {
+	case contact_status_enum.BLACK:
 		return "已拉黑对方，先解除拉黑状态才能发起会话", false, constants.BizCodeInvalid
 	}
 	if receiveId[0] == 'U' {

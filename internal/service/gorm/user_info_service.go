@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type userInfoService struct {
@@ -251,92 +252,134 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	if len(uuidList) == 0 {
 		return "无可处理用户", constants.BizCodeInvalid
 	}
-	// 查出用户作为群主的群
-	var ownerGroups []model.GroupInfo
-	if err := dao.GormDB.
-		Select("uuid, owner_id").
-		Where("owner_id IN ? AND deleted_at IS NULL", uuidList).
-		Find(&ownerGroups).Error; err != nil {
 
-		zlog.Error("查询群主群失败", zap.Error(err))
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
+	// 收集所有受影响的群，用于事务提交后删除群缓存
+	affectedGroups := make(map[string]struct{})
 
-	// 查出用户加入的群
-	var joined []model.GroupMember
-	if err := dao.GormDB.
-		Where("user_uuid IN ?", uuidList).
-		Find(&joined).Error; err != nil {
-
-		zlog.Error("查询群成员失败", zap.Error(err))
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
-	// 构造需要退群的列表（排除自己是群主的群）
-	ownerSet := make(map[string]struct{})
-	for _, g := range ownerGroups {
-		ownerSet[g.Uuid] = struct{}{}
-	}
-	for _, m := range joined {
-		if _, isOwner := ownerSet[m.GroupUuid]; isOwner {
-			continue // 该群稍后会被解散
+	// 数据库事务
+	err := dao.GormDB.Transaction(func(tx *gorm.DB) error {
+		//获取用户创建的群 & 加入的群
+		var ownerGroups []model.GroupInfo
+		if err := tx.Where("owner_id IN ?", uuidList).
+			Find(&ownerGroups).Error; err != nil {
+			return errors.New("查询群主群失败: " + err.Error())
 		}
-		if msg, code := GroupInfoService.LeaveGroup(m.UserUuid, m.GroupUuid); code != constants.BizCodeSuccess {
-			return msg, code
+
+		var joinedMembers []model.GroupMember
+		if err := tx.Where("user_uuid IN ?", uuidList).Find(&joinedMembers).Error; err != nil {
+			return errors.New("查询群成员失败: " + err.Error())
 		}
-	}
-	// 解散自己创建的群
-	for _, g := range ownerGroups {
-		if msg, code := GroupInfoService.DismissGroup(g.OwnerId, g.Uuid); code != constants.BizCodeSuccess {
-			return msg, code
+
+		ownerSet := make(map[string]struct{}, len(ownerGroups))
+		for _, g := range ownerGroups {
+			ownerSet[g.Uuid] = struct{}{}
+			affectedGroups[g.Uuid] = struct{}{} // 无论后续是否解散，都需要清理群缓存
 		}
-	}
 
-	tx := dao.GormDB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			zlog.Error("DeleteUsers panic, rollback", zap.Any("recover", r))
-			tx.Rollback()
+		// 退群逻辑（用户是成员但不是群主）
+		for _, m := range joinedMembers {
+			if _, isOwner := ownerSet[m.GroupUuid]; isOwner {
+				continue // 自己是群主，后面统一解散
+			}
+			affectedGroups[m.GroupUuid] = struct{}{}
+
+			// 锁群信息，防止并发
+			var group model.GroupInfo
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				First(&group, "uuid = ?", m.GroupUuid).Error; err != nil {
+				return errors.New("获取群聊失败: " + err.Error())
+			}
+			if group.OwnerId == m.UserUuid {
+				continue // 理论上不会发生
+			}
+
+			// 校验成员存在并删除
+			var gm model.GroupMember
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				First(&gm, "group_uuid = ? AND user_uuid = ?", m.GroupUuid, m.UserUuid).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue // 不在群里，无需处理
+				}
+				return err
+			}
+			if err := tx.Delete(&model.GroupMember{}, "group_uuid = ? AND user_uuid = ?", m.GroupUuid, m.UserUuid).Error; err != nil {
+				return err
+			}
+
+			// 更新群人数
+			if group.MemberCnt > 0 {
+				group.MemberCnt--
+			}
+			if err := tx.Save(&group).Error; err != nil {
+				return err
+			}
+
+			// 群相关的会话 / 联系人 / 申请会在下面用户数据清理中被清理
 		}
-	}()
 
-	if res := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Message{}); res.Error != nil {
-		zlog.Error("删除聊天消息失败", zap.Error(res.Error))
-		tx.Rollback()
+		//  解散群逻辑（用户是群主）
+		for _, og := range ownerGroups {
+			// 锁群信息
+			var group model.GroupInfo
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				First(&group, "uuid = ?", og.Uuid).Error; err != nil {
+				return errors.New("群聊不存在: " + err.Error())
+			}
+			// 再次确认群主身份
+			if group.OwnerId != og.OwnerId {
+				continue
+			}
+
+			// 删除群成员（硬删）
+			if err := tx.Unscoped().Where("group_uuid = ?", og.Uuid).Delete(&model.GroupMember{}).Error; err != nil {
+				return err
+			}
+
+			// 删除群相关消息 / 会话 / 联系人 / 申请
+			if err := tx.Where("receive_id = ?", og.Uuid).Delete(&model.Message{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("receive_id = ?", og.Uuid).Delete(&model.Session{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("contact_id = ?", og.Uuid).Delete(&model.UserContact{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("contact_id = ?", og.Uuid).Delete(&model.ContactApply{}).Error; err != nil {
+				return err
+			}
+
+			// 软删群信息
+			if err := tx.Delete(&group).Error; err != nil {
+				return err
+			}
+		}
+
+		// 删除与用户直接关联的数据
+		if err := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Message{}).Error; err != nil {
+			return errors.New("删除聊天消息失败: " + err.Error())
+		}
+		if err := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Session{}).Error; err != nil {
+			return errors.New("删除会话失败: " + err.Error())
+		}
+		if err := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.UserContact{}).Error; err != nil {
+			return errors.New("删除联系人失败: " + err.Error())
+		}
+		if err := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.ContactApply{}).Error; err != nil {
+			return errors.New("删除申请记录失败: " + err.Error())
+		}
+		if err := tx.Where("uuid IN ?", uuidList).Delete(&model.UserInfo{}).Error; err != nil {
+			return errors.New("删除用户失败: " + err.Error())
+		}
+
+		return nil // 事务正常提交
+	})
+
+	if err != nil {
+		zlog.Error("DeleteUsers txn failed", zap.Error(err))
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	if res := tx.Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).Delete(&model.Session{}); res.Error != nil {
-		zlog.Error("删除会话失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
-	if res := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.UserContact{}); res.Error != nil {
-		zlog.Error("删除联系人失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
-	if res := tx.Where("user_id IN ? OR contact_id IN ?", uuidList, uuidList).Delete(&model.ContactApply{}); res.Error != nil {
-		zlog.Error("删除申请记录失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
-	if res := tx.Where("uuid IN ?", uuidList).Delete(&model.UserInfo{}); res.Error != nil {
-		zlog.Error("删除用户失败", zap.Error(res.Error))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-
-	// 提交事务
-	if err := tx.Commit().Error; err != nil {
-		zlog.Error("事务提交失败", zap.Error(err))
-		tx.Rollback()
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
-	//群聊相关的缓存在退群/解散群时已经修改
 	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}
@@ -358,6 +401,21 @@ func (u *userInfoService) DeleteUsers(uuidList []string) (string, int) {
 	}
 	if err := myredis.DelKeysWithPrefix("session_list"); err != nil {
 		zlog.Error(err.Error())
+	}
+	// 批量删除受影响群的缓存
+	afg := make([]string, 0, len(affectedGroups))
+	for k := range affectedGroups {
+		afg = append(afg, k)
+	}
+
+	if err := myredis.DelKeysByUUIDList("group_memberlist", afg); err != nil {
+		zlog.Warn("删除联系人缓存失败", zap.Error(err))
+	}
+	if err := myredis.DelKeysByUUIDList("group_info", afg); err != nil {
+		zlog.Warn("删除联系人缓存失败", zap.Error(err))
+	}
+	if err := myredis.DelKeysByUUIDList("contact_info", afg); err != nil {
+		zlog.Warn("删除联系人缓存失败", zap.Error(err))
 	}
 	return "删除用户成功", constants.BizCodeSuccess
 }
@@ -437,13 +495,22 @@ func (u *userInfoService) GetUserInfo(uuid string) (string, *respond.GetUserInfo
 // 某用户修改了信息，可能会影响contact_user_list，不需要删除redis的contact_user_list，timeout之后会自己更新
 // 但是需要更新redis的user_info，因为可能影响用户搜索
 func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest) (string, int) {
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	var user model.UserInfo
-	if res := dao.GormDB.First(&user, "uuid = ?", updateReq.Uuid); res.Error != nil {
+	if res := tx.First(&user, "uuid = ?", updateReq.Uuid); res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			zlog.Debug("该用户不存在，修改失败")
+			tx.Rollback()
 			return "该用户不存在，修改失败", constants.BizCodeInvalid
 		}
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 	if updateReq.Email != "" {
@@ -461,8 +528,14 @@ func (u *userInfoService) UpdateUserInfo(updateReq request.UpdateUserInfoRequest
 	if updateReq.Avatar != "" {
 		user.Avatar = updateReq.Avatar
 	}
-	if res := dao.GormDB.Save(&user); res.Error != nil {
+	if res := tx.Save(&user); res.Error != nil {
 		zlog.Error(res.Error.Error())
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 	rsp := respond.GetUserInfoRespond{
@@ -566,22 +639,29 @@ func (u *userInfoService) AbleUsers(uuidList []string) (string, int) {
 // DisableUsers 禁用用户
 // 用户启用/禁用需要实时更新 contact_user_list 状态，所以要删除对应的 Redis 缓存
 func (u *userInfoService) DisableUsers(uuidList []string) (string, int) {
-	// 批量将用户状态置为 DISABLE
-	if res := dao.GormDB.
-		Model(&model.UserInfo{}).
-		Where("uuid IN ?", uuidList).
-		Update("status", user_status_enum.DISABLE); res.Error != nil {
-		zlog.Error(res.Error.Error())
+	err := dao.GormDB.Transaction(func(tx *gorm.DB) error {
+		// 将用户状态置为 DISABLE
+		if res := tx.
+			Model(&model.UserInfo{}).
+			Where("uuid IN ?", uuidList).
+			Update("status", user_status_enum.DISABLE); res.Error != nil {
+			zlog.Error("批量禁用用户状态失败", zap.Error(res.Error))
+			return res.Error
+		}
+		//软删除所有相关会话
+		if res := tx.
+			Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).
+			Delete(&model.Session{}); res.Error != nil {
+			zlog.Error("批量软删除会话失败", zap.Error(res.Error))
+			return res.Error
+		}
+		// 返回 nil，事务会自动提交
+		return nil
+	})
+	if err != nil {
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
-	// 批量软删除所有相关会话
-	if res := dao.GormDB.
-		Where("send_id IN ? OR receive_id IN ?", uuidList, uuidList).
-		Delete(&model.Session{}); res.Error != nil {
-		zlog.Error(res.Error.Error())
-		return constants.SYSTEM_ERROR, constants.BizCodeError
-	}
 	if err := myredis.DelKeysByUUIDList("user_info", uuidList); err != nil {
 		zlog.Warn("删除用户缓存失败", zap.Error(err))
 	}

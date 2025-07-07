@@ -291,42 +291,64 @@ func (u *userContactService) ApplyContact(req request.ApplyContactRequest) (stri
 	var contactType int8
 	var contactExists bool
 
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 判断是用户还是群聊，并校验存在性和状态
 	switch req.ContactId[0] {
 	case 'U':
-		// 通过缓存服务获取用户信息
-		msg, userInfo, code := (&userInfoService{}).GetUserInfo(req.ContactId)
-		if code != constants.BizCodeSuccess {
-			return msg, code
+		var user model.UserInfo
+		if err := tx.First(&user, "uuid = ?", req.ContactId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				tx.Rollback()
+				return "该用户不存在", constants.BizCodeInvalid
+			}
+			zlog.Error("查询用户失败", zap.Error(err))
+			tx.Rollback()
+			return constants.SYSTEM_ERROR, constants.BizCodeError
 		}
-		if userInfo.Status == user_status_enum.DISABLE {
+		if user.Status == user_status_enum.DISABLE {
+			tx.Rollback()
 			return "用户已被禁用", constants.BizCodeInvalid
 		}
 		contactExists = true
 		contactType = contact_type_enum.USER
 
 	case 'G':
-		msg, groupInfo, code := (&groupInfoService{}).GetGroupInfo(req.ContactId)
-		if code != constants.BizCodeSuccess {
-			return msg, code
+		var group model.GroupInfo
+		if err := tx.First(&group, "uuid = ?", req.ContactId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				tx.Rollback()
+				return "该群聊不存在", constants.BizCodeInvalid
+			}
+			zlog.Error("查询群聊失败", zap.Error(err))
+			tx.Rollback()
+			return constants.SYSTEM_ERROR, constants.BizCodeError
 		}
-		if groupInfo.Status == group_status_enum.DISABLE {
+		if group.Status == group_status_enum.DISABLE {
+			tx.Rollback()
 			return "群聊已被禁用", constants.BizCodeInvalid
 		}
 		contactExists = true
 		contactType = contact_type_enum.GROUP
 
 	default:
+		tx.Rollback()
 		return "非法联系人类型", constants.BizCodeInvalid
 	}
 
 	if !contactExists {
+		tx.Rollback()
 		return "联系人不存在", constants.BizCodeInvalid
 	}
 
 	// 查询现有的申请记录
 	var contactApply model.ContactApply
-	err := dao.GormDB.Where("user_id = ? AND contact_id = ?", req.OwnerId, req.ContactId).First(&contactApply).Error
+	err := tx.Where("user_id = ? AND contact_id = ?", req.OwnerId, req.ContactId).First(&contactApply).Error
 
 	//没有历史申请
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -340,19 +362,27 @@ func (u *userContactService) ApplyContact(req request.ApplyContactRequest) (stri
 			Message:     req.Message,
 			LastApplyAt: time.Now(),
 		}
-		if err := dao.GormDB.Create(&contactApply).Error; err != nil {
+		if err := tx.Create(&contactApply).Error; err != nil {
 			zlog.Error("创建申请记录失败", zap.Error(err))
+			tx.Rollback()
+			return constants.SYSTEM_ERROR, constants.BizCodeError
+		}
+		if err := tx.Commit().Error; err != nil {
+			zlog.Error("事务提交失败", zap.Error(err))
+			tx.Rollback()
 			return constants.SYSTEM_ERROR, constants.BizCodeError
 		}
 		return "申请成功", constants.BizCodeSuccess
 
 	} else if err != nil {
 		zlog.Error("查询申请记录失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	// 存在申请记录
 	if contactApply.Status == contact_apply_status_enum.BLACK {
+		tx.Rollback()
 		return "对方已将你拉黑", constants.BizCodeInvalid
 	}
 
@@ -361,8 +391,14 @@ func (u *userContactService) ApplyContact(req request.ApplyContactRequest) (stri
 	contactApply.Status = contact_apply_status_enum.PENDING
 	contactApply.Message = req.Message // 可选：更新申请备注
 
-	if err := dao.GormDB.Save(&contactApply).Error; err != nil {
+	if err := tx.Save(&contactApply).Error; err != nil {
 		zlog.Error("更新申请记录失败", zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 	return "申请成功", constants.BizCodeSuccess
@@ -687,22 +723,39 @@ func (u *userContactService) RefuseContactApply(ownerId string, contactId string
 		return "非法参数", constants.BizCodeInvalid
 	}
 
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	var contactApply model.ContactApply
-	if err := dao.GormDB.Where("contact_id = ? AND user_id = ?", ownerId, contactId).First(&contactApply).Error; err != nil {
+	if err := tx.Where("contact_id = ? AND user_id = ?", ownerId, contactId).First(&contactApply).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
 			return "申请记录不存在", constants.BizCodeInvalid
 		}
 		zlog.Error("查询申请记录失败", zap.String("ownerId", ownerId), zap.String("contactId", contactId), zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	if contactApply.Status != contact_apply_status_enum.PENDING {
+		tx.Rollback()
 		return "该申请已处理过", constants.BizCodeInvalid
 	}
 
 	contactApply.Status = contact_apply_status_enum.REFUSE
-	if err := dao.GormDB.Save(&contactApply).Error; err != nil {
+	if err := tx.Save(&contactApply).Error; err != nil {
 		zlog.Error("更新申请状态失败", zap.String("ownerId", ownerId), zap.String("contactId", contactId), zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("提交事务失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
@@ -828,22 +881,37 @@ func (u *userContactService) CancelBlackContact(ownerId string, contactId string
 
 // BlackApply 拉黑一条申请
 func (u *userContactService) BlackApply(ownerId string, contactId string) (string, int) {
+	tx := dao.GormDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 	var contactApply model.ContactApply
-	if err := dao.GormDB.Where("contact_id = ? AND user_id = ?", ownerId, contactId).First(&contactApply).Error; err != nil {
+	if err := tx.Where("contact_id = ? AND user_id = ?", ownerId, contactId).First(&contactApply).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
 			return "申请记录不存在", constants.BizCodeInvalid
 		}
 		zlog.Error("查询申请记录失败", zap.String("ownerId", ownerId), zap.String("contactId", contactId), zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
 	if contactApply.Status == contact_apply_status_enum.BLACK {
+		tx.Rollback()
 		return "该申请已被拉黑", constants.BizCodeInvalid
 	}
 
 	contactApply.Status = contact_apply_status_enum.BLACK
-	if err := dao.GormDB.Save(&contactApply).Error; err != nil {
+	if err := tx.Save(&contactApply).Error; err != nil {
 		zlog.Error("拉黑申请失败", zap.String("ownerId", ownerId), zap.String("contactId", contactId), zap.Error(err))
+		tx.Rollback()
+		return constants.SYSTEM_ERROR, constants.BizCodeError
+	}
+	if err := tx.Commit().Error; err != nil {
+		zlog.Error("事务提交失败", zap.Error(err))
+		tx.Rollback()
 		return constants.SYSTEM_ERROR, constants.BizCodeError
 	}
 
